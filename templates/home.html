@@ -1,0 +1,185 @@
+{% extends "theme/base.html" %}
+{% block content %}
+<div class="container-xl">
+  <!-- BEGIN PAGE HEADER -->
+  <div class="page-header d-print-none" aria-label="Page header">
+    <div class="container-xl">
+      <div class="row align-items-center">
+        <!-- LEFT -->
+        <div class="col">
+          <div class="page-pretitle">Overview</div>
+          <!-- TITLE (DESKTOP ONLY) -->
+          <div class="d-flex align-items-center gap-3 flex-wrap d-none d-md-flex">
+            <h2 class="page-title mb-0">Dashboard</h2>
+          </div>
+          <!-- TITLE ONLY (MOBILE) -->
+          <h2 class="page-title mb-0 d-md-none">Dashboard</h2>
+        </div>
+        <!-- RIGHT -->
+        <div class="col-auto">
+          <div class="btn-list">
+            <a href="{% url 'info:info_list' %}" class="btn btn-primary">
+              <i class="fas fa-address-card me-2"></i> Manage Info
+            </a>
+            {% if request.user.is_superuser %}
+            <a href="{% url 'users:user_list' %}" class="btn btn-outline-primary">
+              <i class="fas fa-users me-2"></i> Manage Users
+            </a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <br>
+
+  <!-- STAT CARDS -->
+  <div class="row row-deck row-cards mb-3">
+    <div class="col-sm-6 col-lg-4">
+      <div class="card">
+        <div class="card-body">
+          <div class="d-flex align-items-center">
+            <div class="subheader">Info Records</div>
+          </div>
+          <div class="d-flex align-items-center mt-1">
+            <span class="avatar avatar-md bg-primary-lt me-3">
+              <i class="fas fa-address-card text-primary"></i>
+            </span>
+            <div class="h1 mb-0">{{ total_infos }}</div>
+          </div>
+          <div class="text-muted mt-2">
+            {% if request.user.is_superuser %}Total records in the system{% else %}Records under your account{% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+    {% if total_users is not None %}
+    <div class="col-sm-6 col-lg-4">
+      <div class="card">
+        <div class="card-body">
+          <div class="d-flex align-items-center">
+            <div class="subheader">Users</div>
+          </div>
+          <div class="d-flex align-items-center mt-1">
+            <span class="avatar avatar-md bg-blue-lt me-3">
+              <i class="fas fa-users text-blue"></i>
+            </span>
+            <div class="h1 mb-0">{{ total_users }}</div>
+          </div>
+          <div class="text-muted mt-2">Registered accounts</div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+    <div class="col-sm-6 col-lg-4">
+      <div class="card">
+        <div class="card-body">
+          <div class="d-flex align-items-center">
+            <div class="subheader">Signed in as</div>
+          </div>
+          <div class="d-flex align-items-center gap-2 mt-2">
+            <span class="avatar avatar-md bg-green-lt">
+              {{ request.user.username|first|upper }}
+            </span>
+            <div>
+              <div class="fw-medium">{{ request.user.get_full_name|default:request.user.username }}</div>
+              <div class="text-muted">@{{ request.user.username }}</div>
+            </div>
+          </div>
+          <div class="mt-2">
+            {% if request.user.is_superuser %}
+            <span class="badge bg-purple-lt text-purple">Superuser</span>
+            {% elif request.user.is_staff %}
+            <span class="badge bg-warning-lt text-warning">Staff</span>
+            {% else %}
+            <span class="badge bg-secondary-lt text-secondary">User</span>
+            {% endif %}
+            {% if request.user.is_active %}
+            <span class="badge bg-success-lt text-success">Active</span>
+            {% else %}
+            <span class="badge bg-danger-lt text-danger">Inactive</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RECENT RECORDS + QUICK ACTIONS -->
+  <div class="row row-deck row-cards">
+    <div class="col-lg-8">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Recent Info Records</div>
+          <div class="ms-auto">
+            <a href="{% url 'info:info_list' %}" class="btn btn-ghost-primary btn-sm">View all</a>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-vcenter table-hover card-table text-nowrap">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Name</th>
+                <th>Age</th>
+                <th>Address</th>
+                <th>Email</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for info in recent_infos %}
+              <tr>
+                <td class="text-muted">{{ forloop.counter }}</td>
+                <td class="fw-semibold">{{ info.name }}</td>
+                <td><span class="badge bg-primary-lt text-primary">{{ info.age }}</span></td>
+                <td class="text-muted">{{ info.address }}</td>
+                <td class="text-muted">{{ info.email|default:"—" }}</td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="5">
+                  <div class="empty py-5">
+                    <div class="empty-icon">
+                      <i class="fas fa-address-card fa-2x text-muted"></i>
+                    </div>
+                    <p class="empty-title">No records yet</p>
+                    <p class="empty-subtitle">Add your first info record to get started.</p>
+                    <div class="empty-action">
+                      <a href="{% url 'info:info_list' %}" class="btn btn-primary">
+                        <i class="fas fa-plus-circle me-2"></i> Add Info
+                      </a>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Quick Actions</div>
+        </div>
+        <div class="card-body">
+          <div class="d-grid gap-2">
+            <a href="{% url 'info:info_list' %}" class="btn btn-primary">
+              <i class="fas fa-plus-circle me-2"></i> Add Info
+            </a>
+            <a href="{% url 'info:info_list' %}" class="btn btn-outline-secondary">
+              <i class="ti ti-search me-2"></i> Search Records
+            </a>
+            {% if request.user.is_superuser %}
+            <a href="{% url 'users:user_list' %}" class="btn btn-outline-secondary">
+              <i class="fas fa-users me-2"></i> Manage Users
+            </a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
