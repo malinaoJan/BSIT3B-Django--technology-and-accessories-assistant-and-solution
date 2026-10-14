@@ -1,0 +1,28 @@
+{% load static %}
+<div class="card">
+    <div class="card-media">
+        {% if "laptop" in product.category.name|lower %}<i class="fa-solid fa-laptop"></i>
+        {% elif "phone" in product.category.name|lower or "mobile" in product.category.name|lower %}<i class="fa-solid fa-mobile-screen-button"></i>
+        {% elif "audio" in product.category.name|lower or "head" in product.category.name|lower %}<i class="fa-solid fa-headphones"></i>
+        {% elif "cable" in product.category.name|lower or "charg" in product.category.name|lower %}<i class="fa-solid fa-plug"></i>
+        {% elif "keyboard" in product.category.name|lower or "mouse" in product.category.name|lower %}<i class="fa-solid fa-keyboard"></i>
+        {% elif "storage" in product.category.name|lower or "drive" in product.category.name|lower %}<i class="fa-solid fa-hard-drive"></i>
+        {% elif "monitor" in product.category.name|lower or "display" in product.category.name|lower %}<i class="fa-solid fa-display"></i>
+        {% elif "network" in product.category.name|lower or "router" in product.category.name|lower %}<i class="fa-solid fa-wifi"></i>
+        {% elif "camera" in product.category.name|lower %}<i class="fa-solid fa-camera"></i>
+        {% else %}<i class="fa-solid fa-microchip"></i>{% endif %}
+    </div>
+    <div class="card-body">
+        <span class="badge">{{ product.category.name }}</span>
+        <span class="card-brand">{{ product.brand }}</span>
+        <a href="{% url 'catalog:product_detail' product.pk %}" class="card-title">{{ product.name }}</a>
+        <div class="card-foot">
+            <span class="price">₱{{ product.price }}</span>
+            {% if product.stock_quantity > 0 %}
+                <span class="stock"><i class="fa-solid fa-circle" style="color:#c4b5fd;font-size:.5rem;"></i> In stock</span>
+            {% else %}
+                <span class="stock"><i class="fa-solid fa-circle" style="color:#6b6b76;font-size:.5rem;"></i> Out of stock</span>
+            {% endif %}
+        </div>
+    </div>
+</div>

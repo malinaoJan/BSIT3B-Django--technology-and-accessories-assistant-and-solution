@@ -1,0 +1,49 @@
+{% extends "catalog/base.html" %}
+{% block title %}Products{% endblock %}
+
+{% block content %}
+<section class="block">
+    <div class="container">
+        <div class="section-head">
+            <div>
+                <span class="eyebrow">Catalog</span>
+                <h2>Technology Products &amp; Accessories</h2>
+                <p>Browse, search, and filter our collection.</p>
+            </div>
+        </div>
+
+        <form method="get" class="toolbar">
+            <div class="search-form">
+                <input type="text" name="q" value="{{ query }}" class="field" placeholder="Search by name, brand, or description..." />
+                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-magnifying-glass"></i></button>
+            </div>
+            <select name="category" class="field" style="max-width:220px;" onchange="this.form.submit()">
+                <option value="">All categories</option>
+                {% for cat in nav_categories %}
+                    <option value="{{ cat.id }}" {% if selected_category == cat.id|stringformat:"s" %}selected{% endif %}>{{ cat.name }}</option>
+                {% endfor %}
+            </select>
+            <select name="sort" class="field" style="max-width:200px;" onchange="this.form.submit()">
+                <option value="newest" {% if sort == "newest" %}selected{% endif %}>Newest</option>
+                <option value="price_asc" {% if sort == "price_asc" %}selected{% endif %}>Price: Low to High</option>
+                <option value="price_desc" {% if sort == "price_desc" %}selected{% endif %}>Price: High to Low</option>
+                <option value="name" {% if sort == "name" %}selected{% endif %}>Name (A–Z)</option>
+            </select>
+        </form>
+
+        {% if products %}
+            <div class="grid grid-4">
+                {% for product in products %}
+                    {% include "catalog/_product_card.html" %}
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="empty">
+                <div class="big"><i class="fa-solid fa-magnifying-glass"></i></div>
+                <p>No products match your search.</p>
+                <a href="{% url 'catalog:product_list' %}" class="btn btn-ghost" style="margin-top:1rem;">Clear filters</a>
+            </div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

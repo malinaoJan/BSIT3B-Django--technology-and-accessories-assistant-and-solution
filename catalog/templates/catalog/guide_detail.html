@@ -1,0 +1,45 @@
+{% extends "catalog/base.html" %}
+{% block title %}{{ guide.title }}{% endblock %}
+
+{% block content %}
+<section class="block">
+    <div class="container" style="max-width:860px;">
+        <div class="breadcrumbs">
+            <a href="{% url 'catalog:home' %}">Home</a>
+            <i class="fa-solid fa-chevron-right" style="font-size:.7rem;"></i>
+            <a href="{% url 'catalog:guide_list' %}">Solutions</a>
+            <i class="fa-solid fa-chevron-right" style="font-size:.7rem;"></i>
+            <span>{{ guide.title }}</span>
+        </div>
+
+        <div class="panel">
+            {% if guide.device_type %}<span class="badge purple">{{ guide.device_type }}</span>{% endif %}
+            <h1 style="font-size:2rem;letter-spacing:-.02em;margin:.8rem 0 .6rem;">{{ guide.title }}</h1>
+
+            <div style="color:var(--muted);">
+                <p><strong style="color:var(--danger);">Issue:</strong> {{ guide.issue }}</p>
+                {% if guide.symptoms %}<p style="margin-top:.5rem;"><strong style="color:var(--text);">Symptoms:</strong> {{ guide.symptoms }}</p>{% endif %}
+            </div>
+
+            <div class="divider"></div>
+
+            <h3 style="font-size:1.1rem;"><i class="fa-solid fa-list-check gradient-text"></i> Step-by-step solution</h3>
+            <div class="steps">
+                {% for step in steps %}
+                    <div class="step">{{ step }}</div>
+                {% empty %}
+                    <div class="step">{{ guide.steps }}</div>
+                {% endfor %}
+            </div>
+
+            {% if guide.safety_note %}
+                <div class="note"><i class="fa-solid fa-triangle-exclamation"></i> <strong>Safety note:</strong> {{ guide.safety_note }}</div>
+            {% endif %}
+
+            <div style="margin-top:2rem;">
+                <a href="{% url 'catalog:guide_list' %}" class="btn btn-ghost"><i class="fa-solid fa-arrow-left"></i> Back to solutions</a>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

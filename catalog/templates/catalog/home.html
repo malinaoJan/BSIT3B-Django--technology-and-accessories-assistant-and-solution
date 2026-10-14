@@ -1,0 +1,163 @@
+{% extends "catalog/base.html" %}
+{% block title %}Home{% endblock %}
+
+{% block content %}
+<section class="hero">
+    <div class="container hero-grid">
+        <div>
+            <span class="pill"><i class="fa-solid fa-bolt"></i> Technology &amp; Accessories Assistant</span>
+            <h1>Find the right tech.<br />Solve it <span class="gradient-text">faster</span>.</h1>
+            <p class="lead">
+                Explore technology products and accessories, discover what works with your devices,
+                and get practical solutions to everyday tech problems — all in one organized platform.
+            </p>
+            <div class="hero-actions">
+                <a href="{% url 'catalog:product_list' %}" class="btn btn-primary">
+                    <i class="fa-solid fa-cubes"></i> Browse Products
+                </a>
+                <a href="{% url 'catalog:guide_list' %}" class="btn btn-ghost">
+                    <i class="fa-solid fa-wrench"></i> Troubleshooting
+                </a>
+            </div>
+
+            <div class="stats">
+                <div class="stat">
+                    <div class="num gradient-text" data-count="{{ stats.products }}">0</div>
+                    <div class="lbl">Products</div>
+                </div>
+                <div class="stat">
+                    <div class="num gradient-text" data-count="{{ stats.categories }}">0</div>
+                    <div class="lbl">Categories</div>
+                </div>
+                <div class="stat">
+                    <div class="num gradient-text" data-count="{{ stats.guides }}">0</div>
+                    <div class="lbl">Guides</div>
+                </div>
+                <div class="stat">
+                    <div class="num gradient-text" data-count="{{ stats.devices }}">0</div>
+                    <div class="lbl">Devices</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="hero-visual">
+            <div class="float-card">
+                <div class="fi"><i class="fa-solid fa-laptop gradient-text"></i></div>
+                <strong>Computers</strong>
+                <span>Laptops &amp; desktops</span>
+            </div>
+            <div class="float-card">
+                <div class="fi"><i class="fa-solid fa-headphones gradient-text"></i></div>
+                <strong>Accessories</strong>
+                <span>Audio &amp; peripherals</span>
+            </div>
+            <div class="float-card">
+                <div class="fi"><i class="fa-solid fa-plug gradient-text"></i></div>
+                <strong>Compatibility</strong>
+                <span>Works with your device</span>
+            </div>
+            <div class="float-card">
+                <div class="fi"><i class="fa-solid fa-screwdriver-wrench gradient-text"></i></div>
+                <strong>Solutions</strong>
+                <span>Step-by-step fixes</span>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="block">
+    <div class="container">
+        <div class="section-head">
+            <div>
+                <span class="eyebrow">Shop by type</span>
+                <h2>Product Categories</h2>
+                <p>Organized collections of technology products and accessories.</p>
+            </div>
+            <a href="{% url 'catalog:product_list' %}" class="link-arrow">View all products <i class="fa-solid fa-arrow-right"></i></a>
+        </div>
+        <div class="chips">
+            {% for cat in categories %}
+                <a href="{% url 'catalog:product_list' %}?category={{ cat.id }}" class="chip">
+                    {{ cat.name }} <span class="count">{{ cat.product_count }}</span>
+                </a>
+            {% empty %}
+                <div class="empty" style="width:100%;">
+                    <div class="big"><i class="fa-solid fa-box-open"></i></div>
+                    No categories yet. Add some in the admin dashboard.
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<section class="block">
+    <div class="container">
+        <div class="section-head">
+            <div>
+                <span class="eyebrow">Latest arrivals</span>
+                <h2>Featured Products</h2>
+                <p>Fresh technology and accessories added to the catalog.</p>
+            </div>
+            <a href="{% url 'catalog:product_list' %}" class="link-arrow">See everything <i class="fa-solid fa-arrow-right"></i></a>
+        </div>
+
+        {% if featured %}
+            <div class="grid grid-4">
+                {% for product in featured %}
+                    {% include "catalog/_product_card.html" %}
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="empty">
+                <div class="big"><i class="fa-solid fa-box-open"></i></div>
+                <p>No products yet. Add products from the <a href="/admin/" class="link-arrow">admin dashboard</a>.</p>
+            </div>
+        {% endif %}
+    </div>
+</section>
+
+<section class="block">
+    <div class="container">
+        <div class="section-head">
+            <div>
+                <span class="eyebrow">Quick fixes</span>
+                <h2>Troubleshooting Guides</h2>
+                <p>Practical solutions to common technology problems.</p>
+            </div>
+            <a href="{% url 'catalog:guide_list' %}" class="link-arrow">All guides <i class="fa-solid fa-arrow-right"></i></a>
+        </div>
+
+        {% if guides %}
+            <div class="grid grid-3">
+                {% for guide in guides %}
+                    <a href="{% url 'catalog:guide_detail' guide.pk %}" class="card">
+                        <div class="card-media"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                        <div class="card-body">
+                            {% if guide.device_type %}<span class="badge purple">{{ guide.device_type }}</span>{% endif %}
+                            <span class="card-title">{{ guide.title }}</span>
+                            <span class="card-brand">{{ guide.issue|truncatechars:90 }}</span>
+                            <div class="card-foot">
+                                <span class="link-arrow">Read guide <i class="fa-solid fa-arrow-right"></i></span>
+                            </div>
+                        </div>
+                    </a>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="empty">
+                <div class="big"><i class="fa-solid fa-book"></i></div>
+                <p>No troubleshooting guides published yet.</p>
+            </div>
+        {% endif %}
+    </div>
+</section>
+
+<div class="container">
+    <div class="cta">
+        <span class="eyebrow">Need a hand?</span>
+        <h2>Can't find a solution?</h2>
+        <p>Submit a support ticket and our team will help you pick the right accessory or troubleshoot your device.</p>
+        <a href="{% url 'catalog:support' %}" class="btn btn-primary"><i class="fa-solid fa-headset"></i> Contact Support</a>
+    </div>
+</div>
+{% endblock %}

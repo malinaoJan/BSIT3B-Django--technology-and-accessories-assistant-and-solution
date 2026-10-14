@@ -1,0 +1,66 @@
+{% extends "catalog/base.html" %}
+{% block title %}Support{% endblock %}
+
+{% block content %}
+<section class="block">
+    <div class="container">
+        <div class="section-head" style="justify-content:center;text-align:center;">
+            <div>
+                <span class="eyebrow">We're here to help</span>
+                <h2>Contact Support</h2>
+                <p>Describe your problem and our team will get back to you.</p>
+            </div>
+        </div>
+
+        <div class="panel panel-narrow">
+            {% if messages %}
+                <ul class="messages">
+                    {% for message in messages %}
+                        <li><i class="fa-solid fa-circle-check"></i> {{ message }}</li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+
+            <form method="post" class="form-grid" novalidate>
+                {% csrf_token %}
+
+                <div class="form-row-2">
+                    <div class="form-group">
+                        <label for="{{ form.name.id_for_label }}">Full name</label>
+                        {{ form.name }}
+                        {% for error in form.name.errors %}<p style="color:var(--danger);font-size:.82rem;margin-top:.3rem;">{{ error }}</p>{% endfor %}
+                    </div>
+                    <div class="form-group">
+                        <label for="{{ form.email.id_for_label }}">Email address</label>
+                        {{ form.email }}
+                        {% for error in form.email.errors %}<p style="color:var(--danger);font-size:.82rem;margin-top:.3rem;">{{ error }}</p>{% endfor %}
+                    </div>
+                </div>
+
+                <div class="form-row-2">
+                    <div class="form-group">
+                        <label for="{{ form.subject.id_for_label }}">Subject</label>
+                        {{ form.subject }}
+                        {% for error in form.subject.errors %}<p style="color:var(--danger);font-size:.82rem;margin-top:.3rem;">{{ error }}</p>{% endfor %}
+                    </div>
+                    <div class="form-group">
+                        <label for="{{ form.priority.id_for_label }}">Priority</label>
+                        {{ form.priority }}
+                        {% for error in form.priority.errors %}<p style="color:var(--danger);font-size:.82rem;margin-top:.3rem;">{{ error }}</p>{% endfor %}
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="{{ form.description.id_for_label }}">Description</label>
+                    {{ form.description }}
+                    {% for error in form.description.errors %}<p style="color:var(--danger);font-size:.82rem;margin-top:.3rem;">{{ error }}</p>{% endfor %}
+                </div>
+
+                <div>
+                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Submit ticket</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,77 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}TechFix{% endblock %} · Technology &amp; Accessories Solution</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    <link rel="stylesheet" href="{% static 'catalog/css/style.css' %}" />
+</head>
+<body>
+    <header class="navbar">
+        <div class="container nav-inner">
+            <a href="{% url 'catalog:home' %}" class="brand">
+                <span class="brand-badge"><i class="fa-solid fa-microchip"></i></span>
+                <span>Tech<span class="gradient-text">Fix</span></span>
+            </a>
+
+            <button class="nav-toggle" aria-label="Toggle navigation">
+                <i class="fa-solid fa-bars"></i>
+            </button>
+
+            <nav class="nav-links">
+                <a href="{% url 'catalog:home' %}" class="{% if active == 'home' %}active{% endif %}">Home</a>
+                <a href="{% url 'catalog:product_list' %}" class="{% if active == 'products' %}active{% endif %}">Products</a>
+                <a href="{% url 'catalog:guide_list' %}" class="{% if active == 'guides' %}active{% endif %}">Solutions</a>
+                <a href="{% url 'catalog:support' %}" class="{% if active == 'support' %}active{% endif %}">Support</a>
+                <a href="/admin/" class="btn btn-ghost" style="margin-left:.5rem;">
+                    <i class="fa-solid fa-gauge-high"></i> Dashboard
+                </a>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer>
+        <div class="container">
+            <div class="footer-grid">
+                <div>
+                    <div class="brand" style="margin-bottom:.8rem;">
+                        <span class="brand-badge"><i class="fa-solid fa-microchip"></i></span>
+                        <span>Tech<span class="gradient-text">Fix</span></span>
+                    </div>
+                    <p>Your assistant for technology products, compatible accessories, and practical solutions — all in one place.</p>
+                </div>
+                <div>
+                    <h4>Explore</h4>
+                    <a href="{% url 'catalog:product_list' %}">All Products</a>
+                    <a href="{% url 'catalog:guide_list' %}">Troubleshooting</a>
+                    <a href="{% url 'catalog:support' %}">Get Support</a>
+                </div>
+                <div>
+                    <h4>Categories</h4>
+                    {% for cat in nav_categories|slice:":4" %}
+                        <a href="{% url 'catalog:product_list' %}?category={{ cat.id }}">{{ cat.name }}</a>
+                    {% empty %}
+                        <a href="{% url 'catalog:product_list' %}">Browse catalog</a>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <span>&copy; {% now "Y" %} TechFix — Technology and Accessories Assistant and Solution.</span>
+                <span>Built with Django &amp; Python</span>
+            </div>
+        </div>
+    </footer>
+
+    <script src="{% static 'catalog/js/main.js' %}"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

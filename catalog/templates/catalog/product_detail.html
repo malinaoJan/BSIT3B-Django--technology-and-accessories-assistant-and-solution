@@ -1,0 +1,106 @@
+{% extends "catalog/base.html" %}
+{% block title %}{{ product.name }}{% endblock %}
+
+{% block content %}
+<section class="block">
+    <div class="container">
+        <div class="breadcrumbs">
+            <a href="{% url 'catalog:home' %}">Home</a>
+            <i class="fa-solid fa-chevron-right" style="font-size:.7rem;"></i>
+            <a href="{% url 'catalog:product_list' %}">Products</a>
+            <i class="fa-solid fa-chevron-right" style="font-size:.7rem;"></i>
+            <span>{{ product.name }}</span>
+        </div>
+
+        <div class="detail-grid">
+            <div class="detail-visual">
+                <i class="fa-solid fa-microchip gradient-text"></i>
+            </div>
+
+            <div>
+                <span class="badge">{{ product.category.name }}</span>
+                <h1 style="font-size:2rem;letter-spacing:-.02em;margin:.6rem 0 .2rem;">{{ product.name }}</h1>
+                <p class="card-brand" style="font-size:1rem;">by {{ product.brand }}</p>
+                <div class="detail-price">₱{{ product.price }}</div>
+
+                {% if product.stock_quantity > 0 %}
+                    <span class="badge green"><i class="fa-solid fa-check"></i> {{ product.stock_quantity }} in stock</span>
+                {% else %}
+                    <span class="badge rose"><i class="fa-solid fa-xmark"></i> Out of stock</span>
+                {% endif %}
+
+                <p style="color:var(--muted);margin-top:1.2rem;">{{ product.description|default:"No description provided." }}</p>
+
+                <div class="divider"></div>
+
+                {% if product.specifications %}
+                    <h3 style="font-size:1.05rem;">Specifications</h3>
+                    <ul class="spec-list">
+                        {% for key, value in product.specifications.items %}
+                            <li><span class="k">{{ key }}</span><span>{{ value }}</span></li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+
+                <div style="margin-top:1.6rem;">
+                    <a href="{% url 'catalog:support' %}" class="btn btn-primary"><i class="fa-solid fa-headset"></i> Ask about this product</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="block">
+    <div class="container">
+        <div class="section-head">
+            <div>
+                <span class="eyebrow">Works with</span>
+                <h2>Compatible Devices</h2>
+                <p>Devices verified to work with this product.</p>
+            </div>
+        </div>
+        {% if compatibilities %}
+            <div class="grid grid-3">
+                {% for c in compatibilities %}
+                    <div class="card">
+                        <div class="card-body">
+                            <div style="font-size:1.6rem;"><i class="fa-solid fa-mobile-screen-button gradient-text"></i></div>
+                            <span class="card-title">{{ c.device.brand }} {{ c.device.model_name }}</span>
+                            <span class="card-brand">{{ c.device.get_device_type_display }}{% if c.device.connector_type %} · {{ c.device.connector_type }}{% endif %}</span>
+                            {% if c.compatibility_notes %}<p style="color:var(--muted);font-size:.85rem;">{{ c.compatibility_notes }}</p>{% endif %}
+                            {% if c.verified %}
+                                <span class="badge green" style="margin-top:.4rem;"><i class="fa-solid fa-circle-check"></i> Verified</span>
+                            {% else %}
+                                <span class="badge amber" style="margin-top:.4rem;">Unverified</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="empty">
+                <div class="big"><i class="fa-solid fa-link-slash"></i></div>
+                <p>No compatibility information recorded for this product yet.</p>
+            </div>
+        {% endif %}
+    </div>
+</section>
+
+{% if related %}
+<section class="block">
+    <div class="container">
+        <div class="section-head">
+            <div>
+                <span class="eyebrow">More like this</span>
+                <h2>Related Products</h2>
+            </div>
+        </div>
+        <div class="grid grid-4">
+            {% for product in related %}
+                {% include "catalog/_product_card.html" %}
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endif %}
+{% endblock %}
