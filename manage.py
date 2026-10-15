@@ -6,7 +6,11 @@ import sys
 
 def main():
     """Run administrative tasks."""
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
+    # Real Django project lives in projectv3/ (settings: mysite.settings).
+    # Add it to sys.path so `python manage.py ...` works from TECHFIX root.
+    import pathlib
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent / 'projectv3'))
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'mysite.settings')
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:
