@@ -43,8 +43,23 @@
     <div class="list-group list-group-flush">
       {% for solution in solutions %}
       <div class="list-group-item">
-        <div class="fw-semibold">{{ solution.title }}</div>
-        <div class="text-muted mt-1" style="font-size:.9rem;"><strong>Problem:</strong> {{ solution.problem_description }}</div>
+        <div class="d-flex gap-3 align-items-start">
+          <div class="solution-problem flex-grow-1">
+            <div class="fw-semibold">{{ solution.title }}</div>
+            <div class="text-muted mt-1" style="font-size:.9rem;"><strong>Problem:</strong> {{ solution.problem_description }}</div>
+          </div>
+          {% if solution.video_thumb %}
+          {% with vb=solution.related_product.brand %}
+          <a href="{{ solution.video_url }}" target="_blank" rel="noopener" class="solution-video flex-shrink-0" title="Watch the {% if vb %}{{ vb }} {% endif %}tutorial video">
+            <span class="solution-video-frame">
+              <img src="{{ solution.video_thumb }}" alt="{% if vb %}{{ vb }} {% endif %}tutorial video" class="solution-video-thumb" loading="lazy">
+              <span class="solution-video-play"><i class="fas fa-play"></i></span>
+            </span>
+            <span class="solution-video-caption"><i class="fab fa-youtube me-1"></i>{% if vb %}{{ vb }} {% endif %}tutorial video</span>
+          </a>
+          {% endwith %}
+          {% endif %}
+        </div>
         <div class="text-muted mt-1" style="font-size:.9rem;"><strong>Fix:</strong> {{ solution.steps }}</div>
         <div class="mt-2 d-flex gap-1 flex-wrap">
           <span class="badge {% if solution.difficulty_level == 'Easy' %}techfix-badge-ghost{% elif solution.difficulty_level == 'Medium' %}bg-primary text-white{% else %}techfix-badge-outline{% endif %}">{{ solution.difficulty_level }}</span>

@@ -1,4 +1,9 @@
+import re
+
 from django.db import models
+
+
+_YOUTUBE_ID = re.compile(r'(?:v=|youtu\.be/|/embed/|/shorts/|/live/)([0-9A-Za-z_-]{6,20})')
 
 
 # ---------------------------------------------------------------------------
@@ -269,3 +274,11 @@ class Solution(models.Model):
 
     def __str__(self):
         return self.title
+
+    @property
+    def video_thumb(self):
+        """YouTube thumbnail for video_url (blank when it is not a YouTube link)."""
+        match = _YOUTUBE_ID.search(self.video_url or '')
+        if not match:
+            return ''
+        return 'https://i.ytimg.com/vi/%s/hqdefault.jpg' % match.group(1)
