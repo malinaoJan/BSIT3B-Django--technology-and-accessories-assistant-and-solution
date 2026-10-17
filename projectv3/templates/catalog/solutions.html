@@ -1,0 +1,61 @@
+{% extends "theme/base.html" %}
+{% block content %}
+<div class="container-xl">
+  <div class="page-header d-print-none">
+    <div class="container-xl">
+      <div class="row align-items-center">
+        <div class="col">
+          <div class="page-pretitle">Catalog</div>
+          <h2 class="page-title"><i class="fas fa-screwdriver-wrench me-2 techfix-section-icon"></i>All Solutions ({{ total }})</h2>
+        </div>
+        <div class="col-auto d-flex gap-2">
+          <a href="{% url 'brand_list' %}" class="btn btn-outline-primary"><i class="fas fa-folder-open me-1"></i>Brands</a>
+          <a href="{% url 'dashboard' %}" class="btn btn-outline-primary"><i class="fas fa-arrow-left me-1"></i>Dashboard</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <br>
+  <form method="get" class="mb-3" style="max-width:480px;">
+    <div class="input-group">
+      <input type="text" name="q" value="{{ query }}" class="form-control" placeholder="Search all solutions...">
+      {% if query %}<a href="{% url 'solution_list' %}{% if active_brand %}?brand={{ active_brand|urlencode }}{% endif %}" class="btn btn-outline-secondary">Clear</a>{% endif %}
+      <button class="btn btn-primary" type="submit"><i class="fas fa-search"></i></button>
+    </div>
+    {% if active_brand %}<input type="hidden" name="brand" value="{{ active_brand }}">{% endif %}
+  </form>
+  {% if brands %}
+  <div class="mb-1 text-muted" style="font-size:.82rem;"><i class="fas fa-folder-open me-1"></i>Brand folders — pick one to filter, or open its full folder:</div>
+  <div class="brand-rail mb-3">
+    <a href="{% url 'solution_list' %}{% if query %}?q={{ query|urlencode }}{% endif %}" class="brand-pill {% if not active_brand %}active{% endif %}"><i class="fas fa-border-all"></i>All</a>
+    {% for folder in brands %}
+    <a href="{% url 'solution_list' %}?brand={{ folder.name|urlencode }}{% if query %}&q={{ query|urlencode }}{% endif %}" class="brand-pill {% if active_brand|lower == folder.name|lower %}active{% endif %}"><i class="fas fa-folder"></i>{{ folder.name }} · {{ folder.solution_count }}</a>
+    {% endfor %}
+  </div>
+  {% if active_brand %}
+  <div class="mb-3">
+    <a href="{% url 'brand_detail' active_brand %}" class="btn btn-outline-primary btn-sm"><i class="fas fa-folder-open me-1"></i>Open {{ active_brand }} folder — products, accessories &amp; solutions</a>
+  </div>
+  {% endif %}
+  {% endif %}
+  <div class="card">
+    <div class="list-group list-group-flush">
+      {% for solution in solutions %}
+      <div class="list-group-item">
+        <div class="fw-semibold">{{ solution.title }}</div>
+        <div class="text-muted mt-1" style="font-size:.9rem;"><strong>Problem:</strong> {{ solution.problem_description }}</div>
+        <div class="text-muted mt-1" style="font-size:.9rem;"><strong>Fix:</strong> {{ solution.steps }}</div>
+        <div class="mt-2 d-flex gap-1 flex-wrap">
+          <span class="badge {% if solution.difficulty_level == 'Easy' %}techfix-badge-ghost{% elif solution.difficulty_level == 'Medium' %}bg-primary text-white{% else %}techfix-badge-outline{% endif %}">{{ solution.difficulty_level }}</span>
+          {% if solution.category %}<span class="badge techfix-badge-ghost">{{ solution.category.name }}</span>{% endif %}
+          {% if solution.related_product %}<span class="badge bg-primary text-white">{{ solution.related_product.name }}</span>{% endif %}
+          {% if solution.video_url %}<a href="{{ solution.video_url }}" target="_blank" rel="noopener" class="badge techfix-badge-outline text-decoration-none"><i class="fab fa-youtube me-1"></i>Video guide</a>{% endif %}
+        </div>
+      </div>
+      {% empty %}
+      <div class="list-group-item"><div class="empty py-5"><div class="empty-icon"><i class="fas fa-search fa-2x"></i></div><p class="empty-title">No solutions found{% if query %} for "{{ query }}"{% endif %}</p><p class="empty-subtitle">{% if active_brand %}No matches inside the {{ active_brand }} folder.{% else %}Try a different keyword — search looks through titles, problems, fixes and linked products.{% endif %}</p>{% if active_brand %}<div class="empty-action mt-2"><a href="{% url 'solution_list' %}?q={{ query|urlencode }}" class="btn btn-primary"><i class="fas fa-border-all me-1"></i>Search all brands instead</a></div>{% endif %}</div></div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,91 @@
+%% TECHFIX System — Entity Relationship Diagram (Mermaid)
+%% Paste into https://mermaid.live or any Markdown viewer with Mermaid support
+%% Files: SQL/ERD.mmd | Rendered: SQL/ERD.png, SQL/ERD.svg
+
+erDiagram
+    AUTH_USER {
+        int id PK
+        varchar username "UNIQUE"
+        varchar password
+        varchar first_name
+        varchar last_name
+        varchar email
+        boolean is_superuser
+        boolean is_staff
+        boolean is_active
+        datetime last_login "NULL"
+        datetime date_joined
+    }
+
+    TECHFIX_CATEGORY {
+        bigint id PK
+        varchar name "UNIQUE"
+        text description
+        datetime created_at
+    }
+
+    TECHFIX_PRODUCT {
+        bigint id PK
+        varchar name
+        bigint category_id FK "NULL, SET NULL"
+        varchar brand
+        text description
+        text specifications
+        decimal price "10,2"
+        int stock_quantity
+        varchar image "NULL"
+        datetime created_at
+        datetime updated_at
+    }
+
+    TECHFIX_ACCESSORY {
+        bigint id PK
+        varchar name
+        bigint category_id FK "NULL, SET NULL"
+        varchar brand
+        text description
+        decimal price "10,2"
+        text compatibility_notes
+        int stock_quantity
+        varchar image "NULL"
+        datetime created_at
+    }
+
+    TECHFIX_ACCESSORY_COMPATIBLE_PRODUCTS {
+        bigint id PK
+        bigint accessory_id FK "CASCADE"
+        bigint product_id FK "CASCADE"
+    }
+
+    TECHFIX_SOLUTION {
+        bigint id PK
+        varchar title
+        text problem_description
+        text steps
+        varchar difficulty_level "Easy|Medium|Hard"
+        bigint category_id FK "NULL, SET NULL"
+        bigint related_product_id FK "NULL, SET NULL"
+        varchar video_url
+        datetime created_at
+        datetime updated_at
+    }
+
+    TBLINFO {
+        bigint id PK
+        varchar name
+        int age "1..150"
+        varchar address
+        varchar email
+        int user_id FK "NULL, CASCADE"
+        datetime created_at
+        datetime updated_at
+    }
+
+    %% Relationships
+    AUTH_USER ||--o{ TBLINFO : "owns (1:N)"
+    TECHFIX_CATEGORY ||--o{ TECHFIX_PRODUCT : "groups (1:N)"
+    TECHFIX_CATEGORY ||--o{ TECHFIX_ACCESSORY : "groups (1:N)"
+    TECHFIX_CATEGORY ||--o{ TECHFIX_SOLUTION : "groups (1:N)"
+    TECHFIX_PRODUCT ||--o{ TECHFIX_SOLUTION : "explains (1:N)"
+    TECHFIX_PRODUCT ||--o{ TECHFIX_ACCESSORY_COMPATIBLE_PRODUCTS : "matched in (1:N)"
+    TECHFIX_ACCESSORY ||--o{ TECHFIX_ACCESSORY_COMPATIBLE_PRODUCTS : "matched in (1:N)"

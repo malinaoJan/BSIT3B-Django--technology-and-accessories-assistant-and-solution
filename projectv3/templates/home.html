@@ -1,0 +1,448 @@
+{% extends "theme/base.html" %}
+{% block content %}
+<div class="container-xl">
+  <!-- BEGIN PAGE HEADER -->
+  <div class="page-header d-print-none" aria-label="Page header">
+    <div class="container-xl">
+      <div class="row align-items-center">
+        <!-- LEFT -->
+        <div class="col">
+          <div class="page-pretitle">Overview</div>
+          <div class="d-flex align-items-center gap-3 flex-wrap d-none d-md-flex">
+            <h2 class="page-title mb-0">Dashboard</h2>
+          </div>
+          <h2 class="page-title mb-0 d-md-none">Dashboard</h2>
+        </div>
+        <!-- RIGHT -->
+        <div class="col-auto">
+          <div class="btn-list">
+            <a href="{% url 'info:info_list' %}" class="btn btn-primary">
+              <i class="fas fa-address-card me-2"></i> Manage Info
+            </a>
+            {% if request.user.is_superuser %}
+            <a href="{% url 'users:user_list' %}" class="btn btn-outline-primary">
+              <i class="fas fa-users me-2"></i> Manage Users
+            </a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <br>
+
+  <!-- TECHFIX HOMEPAGE -->
+  <div class="dh-hero mb-3" id="techfix">
+    <div class="dh-hero-inner">
+      <div class="row align-items-center">
+        <div class="col-lg-8">
+          <div class="dh-hero-pretitle">Technology and Accessories Assistant and Solution</div>
+          <h2 class="dh-hero-title"><i class="fa-solid fa-microchip me-2"></i>TechFix <span style="background: linear-gradient(135deg,#fff 0%,#d8b4fe 100%); -webkit-background-clip: text; background-clip: text; color: transparent;">Homepage</span></h2>
+          <p class="dh-hero-sub mb-2">
+            Explore technology products and accessories, understand their features,
+            and find suitable solutions to common technology-related problems.
+          </p>
+          <div>
+            <span class="badge bg-primary text-white me-1"><i class="fas fa-laptop me-1"></i>{{ total_products }} Products</span>
+            <span class="badge techfix-badge-ghost me-1"><i class="fas fa-headphones me-1"></i>{{ total_accessories }} Accessories</span>
+            <span class="badge techfix-badge-outline"><i class="fas fa-screwdriver-wrench me-1"></i>{{ total_solutions }} Solutions</span>
+          </div>
+        </div>
+        <div class="col-lg-4 mt-3 mt-lg-0">
+          <form method="get" action="{% url 'dashboard' %}#techfix" id="techfix-search-form" class="techfix-hero-search">
+            <div class="input-group">
+              <input type="search" name="q" id="techfix-search-input" value="{{ search_query }}" class="form-control" placeholder="Search products, accessories, solutions..." aria-label="Search products, accessories, solutions..." data-dashboard-url="{% url 'dashboard' %}">
+              <button class="btn btn-accent" type="submit"><i class="fas fa-search"></i></button>
+            </div>
+            {% if search_query %}
+            <div class="mt-2">
+              <span style="color: rgba(255,255,255,0.75);">Results for "{{ search_query }}"</span>
+              <a href="{% url 'dashboard' %}" class="btn btn-ghost-secondary btn-sm ms-2">Clear</a>
+            </div>
+            <div class="mt-2 d-flex gap-1 flex-wrap">
+              <a href="{% url 'product_list' %}?q={{ search_query|urlencode }}" class="badge bg-primary text-white text-decoration-none"><i class="fas fa-laptop me-1"></i>{{ product_result_count }} Products</a>
+              <a href="{% url 'accessory_list' %}?q={{ search_query|urlencode }}" class="badge techfix-badge-ghost text-decoration-none"><i class="fas fa-headphones me-1"></i>{{ accessory_result_count }} Accessories</a>
+              <a href="{% url 'solution_list' %}?q={{ search_query|urlencode }}" class="badge techfix-badge-outline text-decoration-none"><i class="fas fa-screwdriver-wrench me-1"></i>{{ solution_result_count }} Solutions</a>
+            </div>
+            {% endif %}
+          </form>
+          {% if request.user.is_superuser %}
+          <div class="mt-2" style="font-size: 0.85rem; color: rgba(255,255,255,0.65);">
+            Manage content in <a href="/admin/" style="color:#f8b84e;">Django Admin</a> &gt; Category / Product / Accessory / Solution.
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TECHFIX STATS (hidden while searching so results sit directly below the search bar) -->
+  {% if not search_query %}
+  <div class="row row-deck row-cards mb-3">
+    <div class="col-sm-6 col-lg-4">
+      <a href="{% url 'product_list' %}" class="text-decoration-none">
+      <div class="card stat-card stat-card-primary text-white">
+        <div class="card-body">
+          <div class="d-flex align-items-center gap-3">
+            <span class="stat-card-icon"><i class="fas fa-laptop"></i></span>
+            <div>
+              <div class="h2 mb-0 text-white">{{ total_products }}</div>
+              <div class="tracking-wide text-uppercase" style="font-size:0.72rem; opacity:0.85;">Products · View all <i class="fas fa-arrow-right ms-1"></i></div>
+            </div>
+          </div>
+          <div class="mt-2" style="opacity:0.8; font-size:0.85rem;">Technology devices in catalog — click to see all</div>
+        </div>
+      </div>
+      </a>
+    </div>
+    <div class="col-sm-6 col-lg-4">
+      <a href="{% url 'accessory_list' %}" class="text-decoration-none">
+      <div class="card stat-card stat-card-info text-white">
+        <div class="card-body">
+          <div class="d-flex align-items-center gap-3">
+            <span class="stat-card-icon"><i class="fas fa-headphones"></i></span>
+            <div>
+              <div class="h2 mb-0 text-white">{{ total_accessories }}</div>
+              <div class="tracking-wide text-uppercase" style="font-size:0.72rem; opacity:0.85;">Accessories · View all <i class="fas fa-arrow-right ms-1"></i></div>
+            </div>
+          </div>
+          <div class="mt-2" style="opacity:0.8; font-size:0.85rem;">Cases, chargers, audio &amp; more — click to see all</div>
+        </div>
+      </div>
+      </a>
+    </div>
+    <div class="col-sm-6 col-lg-4">
+      <a href="{% url 'solution_list' %}" class="text-decoration-none">
+      <div class="card stat-card stat-card-success text-white">
+        <div class="card-body">
+          <div class="d-flex align-items-center gap-3">
+            <span class="stat-card-icon"><i class="fas fa-screwdriver-wrench"></i></span>
+            <div>
+              <div class="h2 mb-0 text-white">{{ total_solutions }}</div>
+              <div class="tracking-wide text-uppercase" style="font-size:0.72rem; opacity:0.85;">Solutions · View all <i class="fas fa-arrow-right ms-1"></i></div>
+            </div>
+          </div>
+          <div class="mt-2" style="opacity:0.8; font-size:0.85rem;">Fixes for common tech problems — click to see all</div>
+        </div>
+      </div>
+      </a>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- BRAND FOLDERS (hidden while searching so results sit directly below the search bar) -->
+  {% if not search_query %}
+  <div class="card mb-3">
+    <div class="card-header">
+      <div class="card-title"><i class="fas fa-folder-open me-2 techfix-section-icon"></i>Brand Folders</div>
+      <div class="ms-auto d-flex align-items-center gap-2">
+        <span class="text-muted" style="font-size: 0.85rem;">{{ brands|length }} brand folder(s)</span>
+        <a href="{% url 'brand_list' %}" class="btn btn-outline-primary btn-sm">View all <i class="fas fa-arrow-right ms-1"></i></a>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="row row-deck row-cards">
+        {% for folder in brands_preview %}
+        <div class="col-sm-6 col-lg-4">
+          <a href="{% url 'brand_detail' folder.name %}" class="brand-folder brand-folder-compact text-decoration-none">
+            <div class="brand-cover {{ folder.accent }}">
+              <span class="brand-mono">{{ folder.name|first|upper }}</span>
+              <i class="fas fa-folder-open brand-ghost"></i>
+            </div>
+            <div class="brand-body">
+              <div class="brand-name">{{ folder.name }}</div>
+              <div class="brand-sub">Brand folder</div>
+              <div class="brand-stats">
+                <div class="brand-stat"><i class="fas fa-laptop"></i><b>{{ folder.product_count }}</b><span>Products</span></div>
+                <div class="brand-stat"><i class="fas fa-headphones"></i><b>{{ folder.accessory_count }}</b><span>Access.</span></div>
+                <div class="brand-stat"><i class="fas fa-screwdriver-wrench"></i><b>{{ folder.solution_count }}</b><span>Solutions</span></div>
+              </div>
+            </div>
+          </a>
+        </div>
+        {% empty %}
+        <div class="col-12">
+          <div class="empty py-4">
+            <div class="empty-icon"><i class="fas fa-folder-open fa-2x"></i></div>
+            <p class="empty-title">No brands yet</p>
+            <p class="empty-subtitle">Brands appear once products or accessories have a brand set.</p>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- PRODUCTS -->
+  <div class="card mb-3">
+    <div class="card-header">
+      <div class="card-title"><i class="fas fa-laptop me-2 techfix-section-icon"></i>{% if search_query %}Product results{% else %}Products{% endif %}</div>
+      <div class="ms-auto d-flex align-items-center gap-2">
+        <span class="text-muted" style="font-size: 0.85rem;">{% if search_query %}{{ product_result_count }} match(es){% else %}Latest {{ products|length }} device(s){% endif %}</span>
+        <a href="{% url 'product_list' %}{% if search_query %}?q={{ search_query|urlencode }}{% endif %}" class="btn btn-outline-primary btn-sm">View all <i class="fas fa-arrow-right ms-1"></i></a>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="row row-deck row-cards">
+        {% for product in products %}
+        <div class="col-sm-6 col-lg-4">
+          <div class="card techfix-card h-100">
+            <div class="card-body">
+              <div class="d-flex align-items-center gap-2 mb-2">
+                <span class="avatar avatar-md techfix-icon"><i class="fas fa-laptop"></i></span>
+                <div>
+                  <div class="fw-semibold">{{ product.name }}</div>
+                  <div class="text-muted" style="font-size: 0.85rem;">{{ product.brand|default:"—" }}{% if product.category %} · {{ product.category.name }}{% endif %}</div>
+                </div>
+              </div>
+              <p class="text-muted mb-2">{{ product.description|truncatewords:18 }}</p>
+              {% if product.specifications %}
+              <div class="text-muted mb-2" style="font-size: 0.85rem;"><i class="fas fa-list-ul me-1"></i>{{ product.specifications|truncatewords:15 }}</div>
+              {% endif %}
+              <div class="d-flex align-items-center justify-content-between">
+                <span class="fw-bold techfix-price">₱{{ product.price }}</span>
+                {% if product.stock_quantity > 0 %}
+                <span class="badge bg-primary text-white">In stock: {{ product.stock_quantity }}</span>
+                {% else %}
+                <span class="badge techfix-badge-outline">Out of stock</span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+          <div class="empty py-4">
+            <div class="empty-icon"><i class="fas fa-{% if search_query %}search{% else %}laptop{% endif %} fa-2x text-muted"></i></div>
+            {% if search_query %}
+            <p class="empty-title">No product matches for "{{ search_query }}"</p>
+            <p class="empty-subtitle">Try a different keyword, or <a href="{% url 'product_list' %}?q={{ search_query|urlencode %}">view all product results</a>.</p>
+            {% else %}
+            <p class="empty-title">No products yet</p>
+            <p class="empty-subtitle">{% if request.user.is_superuser %}Add products in Django Admin to populate the TechFix homepage.{% else %}Products will appear here once an admin adds them.{% endif %}</p>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- ACCESSORIES -->
+  <div class="card mb-3">
+    <div class="card-header">
+      <div class="card-title"><i class="fas fa-headphones me-2 techfix-section-icon"></i>{% if search_query %}Accessory results{% else %}Accessories{% endif %}</div>
+      <div class="ms-auto d-flex align-items-center gap-2">
+        <span class="text-muted" style="font-size: 0.85rem;">{% if search_query %}{{ accessory_result_count }} match(es){% else %}Latest {{ accessories|length }} item(s){% endif %}</span>
+        <a href="{% url 'accessory_list' %}{% if search_query %}?q={{ search_query|urlencode }}{% endif %}" class="btn btn-outline-primary btn-sm">View all <i class="fas fa-arrow-right ms-1"></i></a>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="row row-deck row-cards">
+        {% for item in accessories %}
+        <div class="col-sm-6 col-lg-4">
+          <div class="card techfix-card h-100">
+            <div class="card-body">
+              <div class="d-flex align-items-center gap-2 mb-2">
+                <span class="avatar avatar-md techfix-icon"><i class="fas fa-headphones"></i></span>
+                <div>
+                  <div class="fw-semibold">{{ item.name }}</div>
+                  <div class="text-muted" style="font-size: 0.85rem;">{{ item.brand|default:"—" }}{% if item.category %} · {{ item.category.name }}{% endif %}</div>
+                </div>
+              </div>
+              <p class="text-muted mb-2">{{ item.description|default:"No description yet."|truncatewords:18 }}</p>
+              {% if item.compatibility_notes %}
+              <div class="text-muted mb-2" style="font-size: 0.85rem;"><i class="fas fa-plug me-1"></i>{{ item.compatibility_notes|truncatewords:15 }}</div>
+              {% endif %}
+              <div class="d-flex align-items-center justify-content-between">
+                <span class="fw-bold techfix-price">₱{{ item.price }}</span>
+                {% if item.stock_quantity > 0 %}
+                <span class="badge bg-primary text-white">In stock: {{ item.stock_quantity }}</span>
+                {% else %}
+                <span class="badge techfix-badge-outline">Out of stock</span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+          <div class="empty py-4">
+            <div class="empty-icon"><i class="fas fa-{% if search_query %}search{% else %}headphones{% endif %} fa-2x text-muted"></i></div>
+            {% if search_query %}
+            <p class="empty-title">No accessory matches for "{{ search_query }}"</p>
+            <p class="empty-subtitle">Try a different keyword, or <a href="{% url 'accessory_list' %}?q={{ search_query|urlencode %}">view all accessory results</a>.</p>
+            {% else %}
+            <p class="empty-title">No accessories yet</p>
+            <p class="empty-subtitle">{% if request.user.is_superuser %}Add accessories in Django Admin.{% else %}Accessories will appear here once an admin adds them.{% endif %}</p>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- SOLUTIONS -->
+  <div class="card mb-3">
+    <div class="card-header">
+      <div class="card-title"><i class="fas fa-screwdriver-wrench me-2 techfix-section-icon"></i>{% if search_query %}Solution results{% else %}Solutions{% endif %}</div>
+      <div class="ms-auto d-flex align-items-center gap-2">
+        <span class="text-muted" style="font-size: 0.85rem;">{% if search_query %}{{ solution_result_count }} match(es){% else %}Latest {{ solutions|length }} guide(s){% endif %}</span>
+        <a href="{% url 'solution_list' %}{% if search_query %}?q={{ search_query|urlencode }}{% endif %}" class="btn btn-outline-primary btn-sm">View all <i class="fas fa-arrow-right ms-1"></i></a>
+      </div>
+    </div>
+    <div class="list-group list-group-flush">
+      {% for solution in solutions %}
+      <div class="list-group-item">
+        <div class="row align-items-start">
+          <div class="col">
+            <div class="fw-semibold">{{ solution.title }}</div>
+            <div class="text-muted mt-1" style="font-size: 0.9rem;"><strong>Problem:</strong> {{ solution.problem_description|truncatewords:25 }}</div>
+            <div class="text-muted mt-1" style="font-size: 0.9rem;"><strong>Fix:</strong> {{ solution.steps|truncatewords:30 }}</div>
+            <div class="mt-2 d-flex gap-1 flex-wrap">
+              <span class="badge {% if solution.difficulty_level == 'Easy' %}techfix-badge-ghost{% elif solution.difficulty_level == 'Medium' %}bg-primary text-white{% else %}techfix-badge-outline{% endif %}">{{ solution.difficulty_level }}</span>
+              {% if solution.category %}<span class="badge techfix-badge-ghost">{{ solution.category.name }}</span>{% endif %}
+              {% if solution.related_product %}<span class="badge bg-primary text-white">{{ solution.related_product.name }}</span>{% endif %}
+              {% if solution.video_url %}<a href="{{ solution.video_url }}" target="_blank" rel="noopener" class="badge techfix-badge-outline text-decoration-none"><i class="fab fa-youtube me-1"></i>Video guide</a>{% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+      {% empty %}
+      <div class="list-group-item">
+        <div class="empty py-4">
+          <div class="empty-icon"><i class="fas fa-{% if search_query %}search{% else %}screwdriver-wrench{% endif %} fa-2x text-muted"></i></div>
+          {% if search_query %}
+          <p class="empty-title">No solution matches for "{{ search_query }}"</p>
+          <p class="empty-subtitle">Try a different keyword, or <a href="{% url 'solution_list' %}?q={{ search_query|urlencode %}">view all solution results</a>.</p>
+          {% else %}
+          <p class="empty-title">No solutions yet</p>
+          <p class="empty-subtitle">{% if request.user.is_superuser %}Add troubleshooting guides in Django Admin.{% else %}Solutions will appear here once an admin adds them.{% endif %}</p>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- RECENT RECORDS + QUICK ACTIONS -->
+  <div class="row row-deck row-cards">
+    <div class="col-lg-8">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title"><i class="fas fa-address-card me-2 techfix-section-icon"></i>Recent Info Records</div>
+          <div class="ms-auto">
+            <a href="{% url 'info:info_list' %}" class="btn btn-ghost-primary btn-sm">View all</a>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-vcenter table-hover card-table text-nowrap">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Name</th>
+                <th>Age</th>
+                <th>Address</th>
+                <th>Email</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for info in recent_infos %}
+              <tr>
+                <td class="text-muted">{{ forloop.counter }}</td>
+                <td class="fw-semibold">{{ info.name }}</td>
+                <td><span class="badge bg-primary text-white">{{ info.age }}</span></td>
+                <td class="text-muted">{{ info.address }}</td>
+                <td class="text-muted">{{ info.email|default:"—" }}</td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="5">
+                  <div class="empty py-5">
+                    <div class="empty-icon">
+                      <i class="fas fa-address-card fa-2x text-muted"></i>
+                    </div>
+                    <p class="empty-title">No records yet</p>
+                    <p class="empty-subtitle">Add your first info record to get started.</p>
+                    <div class="empty-action">
+                      <a href="{% url 'info:info_list' %}" class="btn btn-primary">
+                        <i class="fas fa-plus-circle me-2"></i> Add Info
+                      </a>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title"><i class="fas fa-bolt me-2 techfix-section-icon"></i>Quick Actions</div>
+        </div>
+        <div class="card-body">
+          <div class="d-grid gap-2">
+            <a href="{% url 'info:info_list' %}" class="btn btn-primary">
+              <i class="fas fa-plus-circle me-2"></i> Add Info
+            </a>
+            <a href="{% url 'info:info_list' %}" class="btn btn-outline-primary">
+              <i class="ti ti-search me-2"></i> Search Records
+            </a>
+            {% if request.user.is_superuser %}
+            <a href="{% url 'users:user_list' %}" class="btn btn-outline-primary">
+              <i class="fas fa-users me-2"></i> Manage Users
+            </a>
+            <a href="/admin/" class="btn btn-outline-primary">
+              <i class="fas fa-microchip me-2"></i> Manage TechFix Content
+            </a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+(function () {
+  var form = document.getElementById('techfix-search-form');
+  var input = document.getElementById('techfix-search-input');
+  if (!form || !input) return;
+  var dashboardUrl = input.getAttribute('data-dashboard-url') || '{% url 'dashboard' %}';
+
+  // Submitting an empty search goes back to the plain dashboard (no ?q=).
+  form.addEventListener('submit', function (e) {
+    if (!input.value.trim()) {
+      e.preventDefault();
+      window.location.href = dashboardUrl;
+    }
+  });
+
+  // Native search-field X button (type="search") goes back to dashboard.
+  input.addEventListener('search', function () {
+    if (!input.value) window.location.href = dashboardUrl;
+  });
+
+  // Deleting all text while a search is active goes back to dashboard.
+  input.addEventListener('input', function () {
+    if (!input.value && new URLSearchParams(window.location.search).has('q')) {
+      window.location.href = dashboardUrl;
+    }
+  });
+
+  // Escape while in the search bar goes back to dashboard.
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      window.location.href = dashboardUrl;
+    }
+  });
+})();
+</script>
+{% endblock %}

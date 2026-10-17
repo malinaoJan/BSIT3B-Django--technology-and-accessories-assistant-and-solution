@@ -1,0 +1,174 @@
+{% extends "theme/base.html" %}
+{% block content %}
+<div class="container-xl">
+  <!-- HERO -->
+  <div class="brand-hero {{ accent }} mb-3">
+    <i class="fas fa-folder-open brand-ghost"></i>
+    <div class="brand-hero-inner">
+      <div class="d-flex align-items-center gap-3 flex-wrap">
+        <span class="brand-mono brand-mono-lg">{{ brand|first|upper }}</span>
+        <div class="flex-grow-1 min-w-0">
+          <div class="page-pretitle" style="color:rgba(255,255,255,0.75);">Brand folder</div>
+          <h2 class="page-title mb-1" style="font-size:1.7rem;">{{ brand }}</h2>
+          <div class="d-flex gap-2 flex-wrap">
+            <span class="brand-count-chip"><i class="fas fa-laptop"></i>{{ product_count }} Products</span>
+            <span class="brand-count-chip"><i class="fas fa-headphones"></i>{{ accessory_count }} Accessories</span>
+            <span class="brand-count-chip"><i class="fas fa-screwdriver-wrench"></i>{{ solution_count }} Solutions</span>
+          </div>
+        </div>
+        <div class="d-flex gap-2">
+          <a href="{% url 'brand_list' %}" class="btn btn-outline-primary btn-sm"><i class="fas fa-folder me-1"></i>All brands</a>
+          <a href="{% url 'dashboard' %}" class="btn btn-outline-primary btn-sm"><i class="fas fa-arrow-left me-1"></i>Dashboard</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <form method="get" class="mb-3" style="max-width:480px;">
+    <div class="input-group">
+      <input type="text" name="q" value="{{ query }}" class="form-control" placeholder="Search inside {{ brand }}...">
+      {% if query %}<a href="{% url 'brand_detail' brand %}" class="btn btn-outline-secondary">Clear</a>{% endif %}
+      <button class="btn btn-primary" type="submit"><i class="fas fa-search"></i></button>
+    </div>
+  </form>
+
+  <!-- PRODUCTS -->
+  <div class="card mb-3">
+    <div class="card-header">
+      <div class="brand-section-head">
+        <span class="brand-section-tile {{ accent }}" style="background:linear-gradient(135deg, var(--bf-from), var(--bf-to));"><i class="fas fa-laptop"></i></span>
+        <div>
+          <div class="card-title mb-0">{{ brand }} Products</div>
+          <div class="text-muted" style="font-size:.82rem;">{{ product_count }} device(s) in this folder</div>
+        </div>
+      </div>
+      <div class="ms-auto">
+        <a href="{% url 'product_list' %}?brand={{ brand|urlencode }}" class="btn btn-outline-primary btn-sm">View all <i class="fas fa-arrow-right ms-1"></i></a>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="row row-deck row-cards">
+        {% for product in products %}
+        <div class="col-sm-6 col-lg-4">
+          <div class="card techfix-card h-100">
+            <div class="card-body">
+              <div class="d-flex align-items-center gap-2 mb-2">
+                <span class="avatar avatar-md techfix-icon"><i class="fas fa-laptop"></i></span>
+                <div>
+                  <div class="fw-semibold">{{ product.name }}</div>
+                  <div class="text-muted" style="font-size:.85rem;">{{ product.brand|default:"—" }}{% if product.category %} · {{ product.category.name }}{% endif %}</div>
+                </div>
+              </div>
+              <p class="text-muted mb-2">{{ product.description|truncatewords:22 }}</p>
+              {% if product.specifications %}<div class="text-muted mb-2" style="font-size:.85rem;"><i class="fas fa-list-ul me-1"></i>{{ product.specifications|truncatewords:18 }}</div>{% endif %}
+              <div class="d-flex align-items-center justify-content-between">
+                <span class="fw-bold techfix-price">₱{{ product.price }}</span>
+                {% if product.stock_quantity > 0 %}<span class="badge bg-primary text-white">In stock: {{ product.stock_quantity }}</span>{% else %}<span class="badge techfix-badge-outline">Out of stock</span>{% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+        {% empty %}
+        <div class="col-12"><div class="empty py-4"><div class="empty-icon"><i class="fas fa-laptop fa-2x"></i></div><p class="empty-title">No {{ brand }} products</p></div></div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- ACCESSORIES -->
+  <div class="card mb-3">
+    <div class="card-header">
+      <div class="brand-section-head">
+        <span class="brand-section-tile" style="background:linear-gradient(135deg, var(--bf-from), var(--bf-to));"><i class="fas fa-headphones"></i></span>
+        <div>
+          <div class="card-title mb-0">{{ brand }} Accessories</div>
+          <div class="text-muted" style="font-size:.82rem;">{{ accessory_count }} item(s) in this folder</div>
+        </div>
+      </div>
+      <div class="ms-auto">
+        <a href="{% url 'accessory_list' %}?brand={{ brand|urlencode }}" class="btn btn-outline-primary btn-sm">View all <i class="fas fa-arrow-right ms-1"></i></a>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="row row-deck row-cards">
+        {% for item in accessories %}
+        <div class="col-sm-6 col-lg-4">
+          <div class="card techfix-card h-100">
+            <div class="card-body">
+              <div class="d-flex align-items-center gap-2 mb-2">
+                <span class="avatar avatar-md techfix-icon"><i class="fas fa-headphones"></i></span>
+                <div>
+                  <div class="fw-semibold">{{ item.name }}</div>
+                  <div class="text-muted" style="font-size:.85rem;">{{ item.brand|default:"—" }}{% if item.category %} · {{ item.category.name }}{% endif %}</div>
+                </div>
+              </div>
+              <p class="text-muted mb-2">{{ item.description|default:"No description yet."|truncatewords:22 }}</p>
+              {% if item.compatibility_notes %}<div class="text-muted mb-2" style="font-size:.85rem;"><i class="fas fa-plug me-1"></i>{{ item.compatibility_notes }}</div>{% endif %}
+              <div class="d-flex align-items-center justify-content-between">
+                <span class="fw-bold techfix-price">₱{{ item.price }}</span>
+                {% if item.stock_quantity > 0 %}<span class="badge bg-primary text-white">In stock: {{ item.stock_quantity }}</span>{% else %}<span class="badge techfix-badge-outline">Out of stock</span>{% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+        {% empty %}
+        <div class="col-12"><div class="empty py-4"><div class="empty-icon"><i class="fas fa-headphones fa-2x"></i></div><p class="empty-title">No {{ brand }} accessories</p></div></div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- SOLUTIONS -->
+  <div class="card mb-3">
+    <div class="card-header">
+      <div class="brand-section-head">
+        <span class="brand-section-tile" style="background:linear-gradient(135deg, var(--bf-from), var(--bf-to));"><i class="fas fa-screwdriver-wrench"></i></span>
+        <div>
+          <div class="card-title mb-0">{{ brand }} Solutions</div>
+          <div class="text-muted" style="font-size:.82rem;">{{ solution_count }} guide(s) in this folder</div>
+        </div>
+      </div>
+      <div class="ms-auto">
+        <a href="{% url 'solution_list' %}?brand={{ brand|urlencode }}" class="btn btn-outline-primary btn-sm">View all <i class="fas fa-arrow-right ms-1"></i></a>
+      </div>
+    </div>
+    <div class="list-group list-group-flush">
+      {% for solution in solutions %}
+      <div class="list-group-item {% if solution.difficulty_level == 'Easy' %}sol-easy{% elif solution.difficulty_level == 'Medium' %}sol-medium{% else %}sol-hard{% endif %}">
+        <div class="fw-semibold">{{ solution.title }}</div>
+        <div class="text-muted mt-1" style="font-size:.9rem;"><strong>Problem:</strong> {{ solution.problem_description|truncatewords:25 }}</div>
+        <div class="text-muted mt-1" style="font-size:.9rem;"><strong>Fix:</strong> {{ solution.steps|truncatewords:30 }}</div>
+        <div class="mt-2 d-flex gap-1 flex-wrap">
+          <span class="badge {% if solution.difficulty_level == 'Easy' %}techfix-badge-ghost{% elif solution.difficulty_level == 'Medium' %}bg-primary text-white{% else %}techfix-badge-outline{% endif %}">{{ solution.difficulty_level }}</span>
+          {% if solution.category %}<span class="badge techfix-badge-ghost">{{ solution.category.name }}</span>{% endif %}
+          {% if solution.related_product %}<span class="badge bg-primary text-white">{{ solution.related_product.name }}</span>{% endif %}
+        </div>
+      </div>
+      {% empty %}
+      <div class="list-group-item"><div class="empty py-4"><div class="empty-icon"><i class="fas fa-screwdriver-wrench fa-2x"></i></div><p class="empty-title">No {{ brand }} solutions</p></div></div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- OTHER BRANDS -->
+  {% if brands %}
+  <div class="card mb-3">
+    <div class="card-header">
+      <div class="card-title"><i class="fas fa-folder me-2 techfix-section-icon"></i>Other brand folders</div>
+      <div class="ms-auto">
+        <a href="{% url 'brand_list' %}" class="btn btn-outline-primary btn-sm">View all</a>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="brand-rail">
+        {% for folder in brands %}
+        {% if folder.name|lower != brand|lower %}
+        <a href="{% url 'brand_detail' folder.name %}" class="brand-pill"><i class="fas fa-folder"></i>{{ folder.name }}</a>
+        {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

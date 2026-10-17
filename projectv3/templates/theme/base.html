@@ -1,0 +1,71 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+    <meta http-equiv="X-UA-Compatible" content="ie=edge"/>
+    <title>
+      TechFix - Technology and Accessories Assistant
+    </title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔧</text></svg>"/>
+    <link href="{% static 'css/tabler.css' %}" rel="stylesheet"/>
+    <link href="{% static 'css/tabler-flags.css' %}" rel="stylesheet"/>
+    <link href="{% static 'css/tabler-socials.css' %}" rel="stylesheet"/>
+    <link href="{% static 'css/tabler-payments.css' %}" rel="stylesheet"/>
+    <link href="{% static 'css/tabler-vendors.css' %}" rel="stylesheet"/>
+    <link href="{% static 'css/tabler-marketing.css' %}" rel="stylesheet"/>
+    <link href="{% static 'css/tabler-themes.css' %}" rel="stylesheet"/>
+    <link href="{% static 'css/app-theme.css' %}?v=4" rel="stylesheet"/>
+    <link rel="preconnect" href="https://fonts.googleapis.com"/>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+      body { font-family: "Plus Jakarta Sans", "Inter", system-ui, sans-serif; }
+      h1, h2, h3, .page-title, .card-title, .dh-brand-name { font-family: "Sora", "Plus Jakarta Sans", sans-serif; }
+    </style>
+  </head>
+
+  <body>
+    <div class="page">
+
+        {% if request.user.is_authenticated %}
+            {% include 'theme/sidebar.html' %}
+        {% else %}
+            <header class="navbar navbar-expand-md d-print-none">
+              <div class="container-xl">
+                <a href="{% url 'login' %}" class="navbar-brand d-flex align-items-center gap-2 text-decoration-none">
+                  <span class="dh-brand-mark"><i class="fa-solid fa-microchip"></i></span>
+                  <span class="lh-1">
+                    <span class="dh-brand-name" style="color: var(--tblr-body-color);">Tech<span class="text-primary">Fix</span></span>
+                    <span class="dh-brand-sub" style="color: var(--tblr-muted);">Technology Assistant</span>
+                  </span>
+                </a>
+                <div class="ms-auto d-flex gap-2">
+                  <a href="{% url 'login' %}" class="btn btn-outline-primary">Sign in</a>
+                  <a href="{% url 'register' %}" class="btn btn-primary">Create account</a>
+                </div>
+              </div>
+            </header>
+        {% endif %}
+
+        <div class="page-wrapper">
+            <div class="page-body">
+                <div class="container-xl">
+                    {% block content %}
+                    {% endblock %}
+                </div>
+            </div>
+            {% include 'theme/footer.html' %}
+        </div>
+    </div>
+
+    {% include 'theme/settings.html' %}
+
+    <script src="{% static 'js/tabler-theme.js' %}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{% static 'js/tabler.js' %}"></script>
+    {% block extra_js %}{% endblock %}
+  </body>
+</html>

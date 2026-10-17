@@ -1,0 +1,104 @@
+' TECHFIX System — ERD (PlantUML)
+' Open with PlantUML plugin / http://www.plantuml.com/plantuml/uml
+' Files: SQL/ERD.puml | Rendered: SQL/ERD.png, SQL/ERD.svg
+
+@startuml techfix_erd
+!define PRIMARY_KEY(x) <b><color:#1a73e8>x</color></b>
+!define FOREIGN_KEY(x) <i><color:#188038>x</color></i>
+
+title TECHFIX System — Entity Relationship Diagram
+
+entity "auth_user" as auth_user {
+  * id : INT <<PK, AI>>
+  --
+  * username : VARCHAR(150) <<UNIQUE>>
+  * password : VARCHAR(128)
+  * first_name : VARCHAR(150)
+  * last_name : VARCHAR(150)
+  * email : VARCHAR(254)
+  * is_superuser : TINYINT(1)
+  * is_staff : TINYINT(1)
+  * is_active : TINYINT(1)
+  last_login : DATETIME
+  * date_joined : DATETIME
+}
+
+entity "techfix_category" as category {
+  * id : BIGINT <<PK, AI>>
+  --
+  * name : VARCHAR(100) <<UNIQUE>>
+  * description : TEXT
+  * created_at : DATETIME
+}
+
+entity "techfix_product" as product {
+  * id : BIGINT <<PK, AI>>
+  --
+  * name : VARCHAR(255)
+  category_id : BIGINT <<FK, NULL>>
+  brand : VARCHAR(100)
+  * description : TEXT
+  specifications : TEXT
+  * price : DECIMAL(10,2)
+  * stock_quantity : INT UNSIGNED
+  image : VARCHAR(100)
+  * created_at : DATETIME
+  * updated_at : DATETIME
+}
+
+entity "techfix_accessory" as accessory {
+  * id : BIGINT <<PK, AI>>
+  --
+  * name : VARCHAR(255)
+  category_id : BIGINT <<FK, NULL>>
+  brand : VARCHAR(100)
+  description : TEXT
+  * price : DECIMAL(10,2)
+  compatibility_notes : TEXT
+  * stock_quantity : INT UNSIGNED
+  image : VARCHAR(100)
+  * created_at : DATETIME
+}
+
+entity "techfix_accessory_compatible_products" as junction {
+  * id : BIGINT <<PK, AI>>
+  --
+  * accessory_id : BIGINT <<FK>>
+  * product_id : BIGINT <<FK>>
+}
+
+entity "techfix_solution" as solution {
+  * id : BIGINT <<PK, AI>>
+  --
+  * title : VARCHAR(255)
+  * problem_description : TEXT
+  * steps : TEXT
+  * difficulty_level : VARCHAR(10) <<Easy/Medium/Hard>>
+  category_id : BIGINT <<FK, NULL>>
+  related_product_id : BIGINT <<FK, NULL>>
+  video_url : VARCHAR(200)
+  * created_at : DATETIME
+  * updated_at : DATETIME
+}
+
+entity "tblinfo" as info {
+  * id : BIGINT <<PK, AI>>
+  --
+  * name : VARCHAR(255)
+  * age : INT UNSIGNED <<1..150>>
+  * address : VARCHAR(255)
+  email : VARCHAR(255)
+  user_id : INT <<FK, NULL>>
+  * created_at : DATETIME
+  * updated_at : DATETIME
+}
+
+auth_user ||--o{ info : "1 owns N"
+category ||--o{ product : "1 groups N\nSET NULL"
+category ||--o{ accessory : "1 groups N\nSET NULL"
+category ||--o{ solution : "1 groups N\nSET NULL"
+product ||--o{ solution : "1 explained by N\nSET NULL"
+product ||--o{ junction : "1 matched in N\nCASCADE"
+accessory ||--o{ junction : "1 matched in N\nCASCADE"
+
+@enduml

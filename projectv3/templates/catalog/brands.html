@@ -1,0 +1,50 @@
+{% extends "theme/base.html" %}
+{% block content %}
+<div class="container-xl">
+  <div class="page-header d-print-none">
+    <div class="container-xl">
+      <div class="row align-items-center">
+        <div class="col">
+          <div class="page-pretitle">Catalog</div>
+          <h2 class="page-title"><i class="fas fa-folder-open me-2 techfix-section-icon"></i>Brand Folders ({{ total }})</h2>
+        </div>
+        <div class="col-auto">
+          <a href="{% url 'dashboard' %}" class="btn btn-outline-primary"><i class="fas fa-arrow-left me-1"></i>Dashboard</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <br>
+  <form method="get" class="mb-3" style="max-width:480px;">
+    <div class="input-group">
+      <input type="text" name="q" value="{{ query }}" class="form-control" placeholder="Search brand folders...">
+      {% if query %}<a href="{% url 'brand_list' %}" class="btn btn-outline-secondary">Clear</a>{% endif %}
+      <button class="btn btn-primary" type="submit"><i class="fas fa-search"></i></button>
+    </div>
+  </form>
+  <div class="row row-deck row-cards">
+    {% for folder in brands %}
+    <div class="col-sm-6 col-lg-4">
+      <a href="{% url 'brand_detail' folder.name %}" class="brand-folder text-decoration-none">
+        <div class="brand-cover {{ folder.accent }}">
+          <span class="brand-mono">{{ folder.name|first|upper }}</span>
+          <i class="fas fa-folder-open brand-ghost"></i>
+        </div>
+        <div class="brand-body">
+          <div class="brand-name">{{ folder.name }}</div>
+          <div class="brand-sub">Brand folder</div>
+          <div class="brand-stats">
+            <div class="brand-stat"><i class="fas fa-laptop"></i><b>{{ folder.product_count }}</b><span>Products</span></div>
+            <div class="brand-stat"><i class="fas fa-headphones"></i><b>{{ folder.accessory_count }}</b><span>Accessories</span></div>
+            <div class="brand-stat"><i class="fas fa-screwdriver-wrench"></i><b>{{ folder.solution_count }}</b><span>Solutions</span></div>
+          </div>
+          <div class="brand-open">Open folder <i class="fas fa-arrow-right ms-1"></i></div>
+        </div>
+      </a>
+    </div>
+    {% empty %}
+    <div class="col-12"><div class="empty py-5"><div class="empty-icon"><i class="fas fa-folder-open fa-2x"></i></div><p class="empty-title">No brands found</p><p class="empty-subtitle">Try a different search.</p></div></div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
