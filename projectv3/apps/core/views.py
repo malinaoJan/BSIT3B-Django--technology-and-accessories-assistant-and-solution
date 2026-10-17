@@ -371,6 +371,71 @@ def accessory_list(request):
 
 
 @login_required(login_url='login')
+def product_detail(request, pk):
+    from django.http import Http404
+
+    from .models import Accessory, Product, Solution
+
+    try:
+        product = Product.objects.select_related('category').get(pk=pk)
+    except Product.DoesNotExist:
+        raise Http404('Product not found.')
+
+    related_accessories = Accessory.objects.filter(
+        compatible_products=product
+    ).select_related('category').order_by('name')
+
+    if product.brand:
+        same_brand = Product.objects.filter(brand__iexact=product.brand).exclude(
+            pk=product.pk
+        ).select_related('category').order_by('name')[:6]
+        accessories_brand = Accessory.objects.filter(
+            brand__iexact=product.brand
+        ).exclude(compatible_products=product).select_related('category').order_by('name')[:6]
+    else:
+        same_brand = Product.objects.none()
+        accessories_brand = Accessory.objects.none()
+
+    solutions = Solution.objects.filter(related_product=product).select_related('category')
+
+    return render(request, 'catalog/product_detail.html', {
+        'product': product,
+        'related_accessories': related_accessories,
+        'brand_accessories': accessories_brand,
+        'same_brand': same_brand,
+        'solutions': solutions,
+        'brands': _get_brand_folders(),
+    })
+
+
+@login_required(login_url='login')
+def accessory_detail(request, pk):
+    from django.http import Http404
+
+    from .models import Accessory
+
+    try:
+        item = Accessory.objects.select_related('category').get(pk=pk)
+    except Accessory.DoesNotExist:
+        raise Http404('Accessory not found.')
+
+    compatible_products = item.compatible_products.select_related('category').order_by('name')
+    if item.brand:
+        other_items = Accessory.objects.filter(
+            brand__iexact=item.brand
+        ).exclude(pk=item.pk).select_related('category').order_by('name')[:6]
+    else:
+        other_items = Accessory.objects.none()
+
+    return render(request, 'catalog/accessory_detail.html', {
+        'item': item,
+        'compatible_products': compatible_products,
+        'other_items': other_items,
+        'brands': _get_brand_folders(),
+    })
+
+
+@login_required(login_url='login')
 def solution_list(request):
     from .models import Solution
 

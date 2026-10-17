@@ -1,4 +1,5 @@
 {% extends "theme/base.html" %}
+{% load brand_logos %}
 {% block content %}
 <div class="container-xl">
   <div class="page-header d-print-none">
@@ -29,7 +30,7 @@
   <div class="brand-rail mb-3">
     <a href="{% url 'product_list' %}{% if query %}?q={{ query|urlencode }}{% endif %}" class="brand-pill {% if not active_brand %}active{% endif %}"><i class="fas fa-border-all"></i>All</a>
     {% for folder in brands %}
-    <a href="{% url 'product_list' %}?brand={{ folder.name|urlencode }}{% if query %}&q={{ query|urlencode }}{% endif %}" class="brand-pill {% if active_brand|lower == folder.name|lower %}active{% endif %}"><i class="fas fa-folder"></i>{{ folder.name }} · {{ folder.product_count }}</a>
+    <a href="{% url 'product_list' %}?brand={{ folder.name|urlencode }}{% if query %}&q={{ query|urlencode }}{% endif %}" class="brand-pill {% if active_brand|lower == folder.name|lower %}active{% endif %}">{% with logo=folder.name|brand_logo %}{% if logo %}<img src="{{ logo }}" alt="" class="brand-pill-logo" loading="lazy">{% else %}<i class="fas fa-folder"></i>{% endif %}{% endwith %}{{ folder.name }} · {{ folder.product_count }}</a>
     {% endfor %}
   </div>
   {% if active_brand %}
@@ -40,25 +41,7 @@
   {% endif %}
   <div class="row row-deck row-cards">
     {% for product in products %}
-    <div class="col-sm-6 col-lg-4">
-      <div class="card techfix-card h-100">
-        <div class="card-body">
-          <div class="d-flex align-items-center gap-2 mb-2">
-            <span class="avatar avatar-md techfix-icon"><i class="fas fa-laptop"></i></span>
-            <div>
-              <div class="fw-semibold">{{ product.name }}</div>
-              <div class="text-muted" style="font-size:.85rem;">{{ product.brand|default:"—" }}{% if product.category %} · {{ product.category.name }}{% endif %}</div>
-            </div>
-          </div>
-          <p class="text-muted mb-2">{{ product.description|truncatewords:22 }}</p>
-          {% if product.specifications %}<div class="text-muted mb-2" style="font-size:.85rem;"><i class="fas fa-list-ul me-1"></i>{{ product.specifications }}</div>{% endif %}
-          <div class="d-flex align-items-center justify-content-between">
-            <span class="fw-bold techfix-price">₱{{ product.price }}</span>
-            {% if product.stock_quantity > 0 %}<span class="badge bg-primary text-white">In stock: {{ product.stock_quantity }}</span>{% else %}<span class="badge techfix-badge-outline">Out of stock</span>{% endif %}
-          </div>
-        </div>
-      </div>
-    </div>
+    <div class="col-sm-6 col-lg-4">{% include "catalog/_product_card.html" %}</div>
     {% empty %}
     <div class="col-12"><div class="empty py-5"><div class="empty-icon"><i class="fas fa-search fa-2x"></i></div><p class="empty-title">No products found{% if query %} for "{{ query }}"{% endif %}</p><p class="empty-subtitle">{% if active_brand %}No matches inside the {{ active_brand }} folder.{% else %}Try a different keyword — search looks through names, brands, specs and categories.{% endif %}</p>{% if active_brand %}<div class="empty-action mt-2"><a href="{% url 'product_list' %}?q={{ query|urlencode }}" class="btn btn-primary"><i class="fas fa-border-all me-1"></i>Search all brands instead</a></div>{% endif %}</div></div>
     {% endfor %}

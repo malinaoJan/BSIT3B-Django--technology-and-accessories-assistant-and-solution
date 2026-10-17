@@ -1,4 +1,5 @@
 {% extends "theme/base.html" %}
+{% load brand_logos %}
 {% block content %}
 <div class="container-xl">
   <!-- HERO -->
@@ -6,7 +7,9 @@
     <i class="fas fa-folder-open brand-ghost"></i>
     <div class="brand-hero-inner">
       <div class="d-flex align-items-center gap-3 flex-wrap">
-        <span class="brand-mono brand-mono-lg">{{ brand|first|upper }}</span>
+        {% with logo=brand|brand_logo %}
+        {% if logo %}<span class="brand-logo brand-logo-lg"><img src="{{ logo }}" alt="{{ brand }} logo"></span>{% else %}<span class="brand-mono brand-mono-lg">{{ brand|first|upper }}</span>{% endif %}
+        {% endwith %}
         <div class="flex-grow-1 min-w-0">
           <div class="page-pretitle" style="color:rgba(255,255,255,0.75);">Brand folder</div>
           <h2 class="page-title mb-1" style="font-size:1.7rem;">{{ brand }}</h2>
@@ -49,25 +52,7 @@
     <div class="card-body">
       <div class="row row-deck row-cards">
         {% for product in products %}
-        <div class="col-sm-6 col-lg-4">
-          <div class="card techfix-card h-100">
-            <div class="card-body">
-              <div class="d-flex align-items-center gap-2 mb-2">
-                <span class="avatar avatar-md techfix-icon"><i class="fas fa-laptop"></i></span>
-                <div>
-                  <div class="fw-semibold">{{ product.name }}</div>
-                  <div class="text-muted" style="font-size:.85rem;">{{ product.brand|default:"—" }}{% if product.category %} · {{ product.category.name }}{% endif %}</div>
-                </div>
-              </div>
-              <p class="text-muted mb-2">{{ product.description|truncatewords:22 }}</p>
-              {% if product.specifications %}<div class="text-muted mb-2" style="font-size:.85rem;"><i class="fas fa-list-ul me-1"></i>{{ product.specifications|truncatewords:18 }}</div>{% endif %}
-              <div class="d-flex align-items-center justify-content-between">
-                <span class="fw-bold techfix-price">₱{{ product.price }}</span>
-                {% if product.stock_quantity > 0 %}<span class="badge bg-primary text-white">In stock: {{ product.stock_quantity }}</span>{% else %}<span class="badge techfix-badge-outline">Out of stock</span>{% endif %}
-              </div>
-            </div>
-          </div>
-        </div>
+        <div class="col-sm-6 col-lg-4">{% include "catalog/_product_card.html" %}</div>
         {% empty %}
         <div class="col-12"><div class="empty py-4"><div class="empty-icon"><i class="fas fa-laptop fa-2x"></i></div><p class="empty-title">No {{ brand }} products</p></div></div>
         {% endfor %}
@@ -92,25 +77,7 @@
     <div class="card-body">
       <div class="row row-deck row-cards">
         {% for item in accessories %}
-        <div class="col-sm-6 col-lg-4">
-          <div class="card techfix-card h-100">
-            <div class="card-body">
-              <div class="d-flex align-items-center gap-2 mb-2">
-                <span class="avatar avatar-md techfix-icon"><i class="fas fa-headphones"></i></span>
-                <div>
-                  <div class="fw-semibold">{{ item.name }}</div>
-                  <div class="text-muted" style="font-size:.85rem;">{{ item.brand|default:"—" }}{% if item.category %} · {{ item.category.name }}{% endif %}</div>
-                </div>
-              </div>
-              <p class="text-muted mb-2">{{ item.description|default:"No description yet."|truncatewords:22 }}</p>
-              {% if item.compatibility_notes %}<div class="text-muted mb-2" style="font-size:.85rem;"><i class="fas fa-plug me-1"></i>{{ item.compatibility_notes }}</div>{% endif %}
-              <div class="d-flex align-items-center justify-content-between">
-                <span class="fw-bold techfix-price">₱{{ item.price }}</span>
-                {% if item.stock_quantity > 0 %}<span class="badge bg-primary text-white">In stock: {{ item.stock_quantity }}</span>{% else %}<span class="badge techfix-badge-outline">Out of stock</span>{% endif %}
-              </div>
-            </div>
-          </div>
-        </div>
+        <div class="col-sm-6 col-lg-4">{% include "catalog/_accessory_card.html" %}</div>
         {% empty %}
         <div class="col-12"><div class="empty py-4"><div class="empty-icon"><i class="fas fa-headphones fa-2x"></i></div><p class="empty-title">No {{ brand }} accessories</p></div></div>
         {% endfor %}
@@ -163,7 +130,7 @@
       <div class="brand-rail">
         {% for folder in brands %}
         {% if folder.name|lower != brand|lower %}
-        <a href="{% url 'brand_detail' folder.name %}" class="brand-pill"><i class="fas fa-folder"></i>{{ folder.name }}</a>
+        <a href="{% url 'brand_detail' folder.name %}" class="brand-pill">{% with logo=folder.name|brand_logo %}{% if logo %}<img src="{{ logo }}" alt="" class="brand-pill-logo" loading="lazy">{% else %}<i class="fas fa-folder"></i>{% endif %}{% endwith %}{{ folder.name }}</a>
         {% endif %}
         {% endfor %}
       </div>

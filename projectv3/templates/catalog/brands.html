@@ -1,4 +1,5 @@
 {% extends "theme/base.html" %}
+{% load brand_logos %}
 {% block content %}
 <div class="container-xl">
   <div class="page-header d-print-none">
@@ -27,7 +28,9 @@
     <div class="col-sm-6 col-lg-4">
       <a href="{% url 'brand_detail' folder.name %}" class="brand-folder text-decoration-none">
         <div class="brand-cover {{ folder.accent }}">
-          <span class="brand-mono">{{ folder.name|first|upper }}</span>
+          {% with logo=folder.name|brand_logo %}
+          {% if logo %}<span class="brand-logo"><img src="{{ logo }}" alt="{{ folder.name }} logo" loading="lazy"></span>{% else %}<span class="brand-mono">{{ folder.name|first|upper }}</span>{% endif %}
+          {% endwith %}
           <i class="fas fa-folder-open brand-ghost"></i>
         </div>
         <div class="brand-body">

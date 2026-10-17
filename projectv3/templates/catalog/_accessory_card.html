@@ -1,0 +1,30 @@
+{% load brand_logos %}
+<div class="card techfix-card h-100">
+  <div class="card-body">
+    <a href="{% url 'accessory_detail' item.id %}" class="d-block mb-3 text-decoration-none">
+      {% if item.image %}
+      <img src="{{ item.image.url }}" class="prod-photo" alt="{{ item.name }}" loading="lazy">
+      {% else %}
+      <div class="prod-media {{ item.display_tint }}">
+        {% with logo=item.brand|brand_logo %}{% if logo %}<span class="prod-media-logo"><img src="{{ logo }}" alt="{{ item.brand }} logo" loading="lazy"></span>{% else %}<i class="{{ item.display_icon }} prod-media-icon" aria-hidden="true"></i>{% endif %}{% endwith %}
+        <i class="{{ item.display_icon }} prod-media-type" aria-hidden="true"></i>
+        <span class="prod-media-name">{{ item.name }}</span>
+      </div>
+      {% endif %}
+    </a>
+    <div class="d-flex align-items-center gap-2 mb-2">
+      {% with logo=item.brand|brand_logo %}{% if logo %}<span class="brand-logo brand-logo-sm"><img src="{{ logo }}" alt="{{ item.brand }} logo" loading="lazy"></span>{% endif %}{% endwith %}
+      <div>
+        <a href="{% url 'accessory_detail' item.id %}" class="fw-semibold text-decoration-none text-body d-block">{{ item.name }}</a>
+        <div class="text-muted" style="font-size:.85rem;">{{ item.brand|default:"—" }}{% if item.category %} · {{ item.category.name }}{% endif %}</div>
+      </div>
+    </div>
+    <p class="text-muted mb-2">{{ item.description|default:"No description yet."|truncatewords:18 }}</p>
+    {% if item.compatibility_notes %}<div class="text-muted mb-2" style="font-size:.85rem;"><i class="fas fa-plug me-1"></i>{{ item.compatibility_notes|truncatewords:12 }}</div>{% endif %}
+    <div class="d-flex align-items-center justify-content-between">
+      <span class="fw-bold techfix-price">₱{{ item.price }}</span>
+      {% if item.stock_quantity > 0 %}<span class="badge bg-primary text-white">In stock: {{ item.stock_quantity }}</span>{% else %}<span class="badge techfix-badge-outline">Out of stock</span>{% endif %}
+    </div>
+    <a href="{% url 'accessory_detail' item.id %}" class="btn btn-outline-primary btn-sm w-100 mt-3"><i class="fas fa-circle-info me-1"></i>View picture &amp; full details</a>
+  </div>
+</div>

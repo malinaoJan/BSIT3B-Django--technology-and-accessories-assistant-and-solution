@@ -1,4 +1,5 @@
 {% extends "theme/base.html" %}
+{% load brand_logos %}
 {% block content %}
 <div class="container-xl">
   <div class="page-header d-print-none">
@@ -29,7 +30,7 @@
   <div class="brand-rail mb-3">
     <a href="{% url 'solution_list' %}{% if query %}?q={{ query|urlencode }}{% endif %}" class="brand-pill {% if not active_brand %}active{% endif %}"><i class="fas fa-border-all"></i>All</a>
     {% for folder in brands %}
-    <a href="{% url 'solution_list' %}?brand={{ folder.name|urlencode }}{% if query %}&q={{ query|urlencode }}{% endif %}" class="brand-pill {% if active_brand|lower == folder.name|lower %}active{% endif %}"><i class="fas fa-folder"></i>{{ folder.name }} · {{ folder.solution_count }}</a>
+    <a href="{% url 'solution_list' %}?brand={{ folder.name|urlencode }}{% if query %}&q={{ query|urlencode }}{% endif %}" class="brand-pill {% if active_brand|lower == folder.name|lower %}active{% endif %}">{% with logo=folder.name|brand_logo %}{% if logo %}<img src="{{ logo }}" alt="" class="brand-pill-logo" loading="lazy">{% else %}<i class="fas fa-folder"></i>{% endif %}{% endwith %}{{ folder.name }} · {{ folder.solution_count }}</a>
     {% endfor %}
   </div>
   {% if active_brand %}

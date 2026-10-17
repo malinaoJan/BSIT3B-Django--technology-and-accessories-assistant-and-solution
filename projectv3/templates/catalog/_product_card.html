@@ -1,0 +1,30 @@
+{% load brand_logos %}
+<div class="card techfix-card h-100">
+  <div class="card-body">
+    <a href="{% url 'product_detail' product.id %}" class="d-block mb-3 text-decoration-none">
+      {% if product.image %}
+      <img src="{{ product.image.url }}" class="prod-photo" alt="{{ product.name }}" loading="lazy">
+      {% else %}
+      <div class="prod-media {{ product.display_tint }}">
+        {% with logo=product.brand|brand_logo %}{% if logo %}<span class="prod-media-logo"><img src="{{ logo }}" alt="{{ product.brand }} logo" loading="lazy"></span>{% else %}<i class="{{ product.display_icon }} prod-media-icon" aria-hidden="true"></i>{% endif %}{% endwith %}
+        <i class="{{ product.display_icon }} prod-media-type" aria-hidden="true"></i>
+        <span class="prod-media-name">{{ product.name }}</span>
+      </div>
+      {% endif %}
+    </a>
+    <div class="d-flex align-items-center gap-2 mb-2">
+      {% with logo=product.brand|brand_logo %}{% if logo %}<span class="brand-logo brand-logo-sm"><img src="{{ logo }}" alt="{{ product.brand }} logo" loading="lazy"></span>{% endif %}{% endwith %}
+      <div>
+        <a href="{% url 'product_detail' product.id %}" class="fw-semibold text-decoration-none text-body d-block">{{ product.name }}</a>
+        <div class="text-muted" style="font-size:.85rem;">{{ product.brand|default:"—" }}{% if product.category %} · {{ product.category.name }}{% endif %}</div>
+      </div>
+    </div>
+    <p class="text-muted mb-2">{{ product.description|truncatewords:18 }}</p>
+    {% if product.specifications %}<div class="text-muted mb-2" style="font-size:.85rem;"><i class="fas fa-list-ul me-1"></i>{{ product.specifications|truncatewords:12 }}</div>{% endif %}
+    <div class="d-flex align-items-center justify-content-between">
+      <span class="fw-bold techfix-price">₱{{ product.price }}</span>
+      {% if product.stock_quantity > 0 %}<span class="badge bg-primary text-white">In stock: {{ product.stock_quantity }}</span>{% else %}<span class="badge techfix-badge-outline">Out of stock</span>{% endif %}
+    </div>
+    <a href="{% url 'product_detail' product.id %}" class="btn btn-outline-primary btn-sm w-100 mt-3"><i class="fas fa-circle-info me-1"></i>View picture &amp; full specs</a>
+  </div>
+</div>
