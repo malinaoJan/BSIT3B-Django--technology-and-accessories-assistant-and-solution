@@ -23,7 +23,7 @@
     {% if product.specifications %}<div class="text-muted mb-2" style="font-size:.85rem;"><i class="fas fa-list-ul me-1"></i>{{ product.specifications|truncatewords:12 }}</div>{% endif %}
     <div class="d-flex align-items-center justify-content-between">
       <span class="fw-bold techfix-price">₱{{ product.price }}</span>
-      {% if product.stock_quantity > 0 %}<span class="badge bg-primary text-white">In stock: {{ product.stock_quantity }}</span>{% else %}<span class="badge techfix-badge-outline">Out of stock</span>{% endif %}
+      {% if product.stock_quantity == 0 %}<span class="badge techfix-badge-outline">Out of stock</span>{% endif %}
     </div>
     <a href="{% url 'product_detail' product.id %}" class="btn btn-outline-primary btn-sm w-100 mt-3"><i class="fas fa-circle-info me-1"></i>View picture &amp; full specs</a>
   </div>

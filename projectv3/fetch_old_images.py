@@ -47,7 +47,7 @@ OFFSET = int(os.environ.get("TECHFIX_IMG_OFFSET", "0"))
 REDO = os.environ.get("TECHFIX_IMG_REDO") == "1"
 REDO_TILES = os.environ.get("TECHFIX_IMG_REDO_TILES") == "1"
 COMMONS = "https://commons.wikimedia.org/w/api.php"
-SLEEP = 1.2          # polite pause between items
+SLEEP = 4.0          # polite pause between items
 RETRIES = 4
 
 # ---------------------------------------------------------------------------
@@ -57,7 +57,7 @@ RETRIES = 4
 BRAND_ALIASES = {
     "apple": {"apple", "iphone", "ipad", "ipod", "imac", "macbook", "airpods"},
     "samsung": {"samsung", "galaxy", "syncmaster"},
-    "xiaomi": {"xiaomi", "redmi", "miband"},
+    "xiaomi": {"xiaomi", "redmi", "miband", "mi"},
     "huawei": {"huawei", "mate", "nova", "mediapad", "ascend"},
     "oppo": {"oppo"},
     "oneplus": {"oneplus", "one"},
@@ -131,6 +131,39 @@ CANDIDATE_BAD = (
 
 GENERIC_SINGLE = {"a", "an", "s", "x", "z", "i", "e", "d", "g", "k", "j", "c", "v", "u"}
 
+# screen sizes, mm dimensions and release-period words carry no model identity:
+# "MacBook Pro 13-inch Mid 2012" and the article "MacBook Pro" refer to the same
+# family. They are stripped from the search query and no longer required in a
+# candidate title (a *different* size in the title still rejects the candidate).
+SIZE_PERIOD_RE = re.compile(
+    r"\b\d+(?:\.\d+)?(?:[- ]?inch|inches|mm)\b|\b\d+\.\d+\b|\b(mid|early|late)\b",
+    re.IGNORECASE,
+)
+
+OPTIONAL_PERIOD_WORDS = {"mid", "early", "late"}
+
+
+def strip_size_period(text):
+    removed = []
+
+    def _grab(match):
+        removed.append(match.group(0))
+        return " "
+
+    cleaned = SIZE_PERIOD_RE.sub(_grab, text or "")
+    return re.sub(r"\s+", " ", cleaned).strip(), " ".join(removed)
+
+
+def family_key(text, brand):
+    """Normalized model name with the plain brand word(s) removed.
+
+    Used to allow a *family* article (e.g. title "MacBook Pro") to illustrate a
+    specific size/year variant ("MacBook Pro 13-inch Mid 2012") only when the
+    article title is exactly the model name without the brand.
+    """
+    raw_brand = set(tokens(brand or "", drop_single=False))
+    return " ".join(t for t in tokens(text, drop_single=False) if t not in raw_brand)
+
 
 def tokens(text, drop_single=True):
     text = (text or "").replace("+", " plus ")
@@ -163,6 +196,16 @@ def brand_anchor(brand):
     return {a for a in aliases if a}
 
 
+def maker_words(brand):
+    """Only the brand's own word(s); product-family aliases (kinect, macbook...)
+    stay REQUIRED model tokens so e.g. an 'Xbox 360 controller' article can never
+    satisfy an item whose model word is 'Kinect'."""
+    raw = (brand or "").strip().lower()
+    words = set(tokens(raw, drop_single=False))
+    words |= set(tokens(raw.replace("-", ""), drop_single=False))
+    return {w for w in words if w}
+
+
 def has_extra_model_token(extra):
     """True when an extra file-name token means another variant/model."""
     if extra in VARIANT_WORDS:
@@ -172,7 +215,8 @@ def has_extra_model_token(extra):
     return False
 
 
-def evaluate(title, brand, query_tokens, year=None):
+def evaluate(title, brand, query_tokens, year=None, optional_tokens=frozenset(),
+             size_tokens=frozenset(), family_names=frozenset()):
     """Return a ranking tuple when the candidate is an exact-model match."""
     low = " " + title.lower() + " "
     if any(bad in low for bad in CANDIDATE_BAD):
@@ -187,8 +231,10 @@ def evaluate(title, brand, query_tokens, year=None):
         return None
 
     anchors = brand_anchor(brand)
-    # brand words act as an anchor to confirm the maker, not as model tokens
-    required = [t for t in query_tokens if t not in anchors]
+    # only the maker's own word is exempt from matching; family aliases
+    # (iphone, kinect, macbook, ...) must still appear in the candidate title
+    makers = maker_words(brand)
+    required = [t for t in query_tokens if t not in makers and t not in optional_tokens]
     missing = [t for t in required if t not in title_set]
     if missing:
         return None
@@ -196,7 +242,13 @@ def evaluate(title, brand, query_tokens, year=None):
     if anchors and not (anchors & title_set):
         return None
 
-    extra = [t for t in title_set if t not in set(query_tokens)]
+    # stripped screen sizes / mm dimensions must still match, unless the
+    # candidate title IS exactly the family name (brand word removed)
+    if size_tokens and not (set(size_tokens) <= title_set):
+        if family_key(title, brand) not in family_names:
+            return None
+
+    extra = [t for t in title_set if t not in set(query_tokens) and t not in optional_tokens]
     if any(has_extra_model_token(t) for t in extra):
         return None
 
@@ -205,11 +257,14 @@ def evaluate(title, brand, query_tokens, year=None):
     return (-len(extra), front_bonus)
 
 
-def best_candidate(brand, query, candidates, year=None):
+def best_candidate(brand, query, candidates, year=None, optional_tokens=frozenset(),
+                   size_tokens=frozenset()):
     query_tokens = list(dict.fromkeys(tokens(query)))
+    family_names = {family_key(query, brand)}
     best = None
     for title, url in candidates:
-        rank = evaluate(title, brand, query_tokens, year)
+        rank = evaluate(title, brand, query_tokens, year, optional_tokens,
+                        size_tokens, family_names)
         if rank is None:
             continue
         if best is None or rank > best[0]:
@@ -237,7 +292,7 @@ def fetch(url, params=None, binary=False):
         except urllib.error.HTTPError as exc:
             last_error = exc
             if exc.code == 429:
-                wait = 5 * (attempt + 1)
+                wait = 10 * (attempt + 1)
                 print(f"    (rate limited, waiting {wait}s)", flush=True)
                 time.sleep(wait)
                 continue
@@ -248,7 +303,7 @@ def fetch(url, params=None, binary=False):
     raise last_error
 
 
-def commons_search(query, limit=15):
+def commons_search(query, limit=20):
     key = f"{query}|{limit}"
     if key in _SEARCH_CACHE:
         return _SEARCH_CACHE[key]
@@ -476,19 +531,26 @@ def run():
 
         candidates = []
         net_before = _NETWORK_HITS
-        queries = [query]
-        qualified = f"{query} {brand}".strip()
-        if qualified.lower() != query.lower():
+        cleaned_query, removed = strip_size_period(query)
+        removed_tokens = tokens(removed)
+        optional_tokens = set(removed_tokens)
+        size_tokens = {t for t in removed_tokens if t not in OPTIONAL_PERIOD_WORDS}
+        queries = [cleaned_query]
+        qualified = f"{cleaned_query} {brand}".strip()
+        if qualified.lower() != cleaned_query.lower():
             queries.append(qualified)
+        queries.append(f"intitle:{cleaned_query}")
         for search_query in queries:
             try:
                 candidates += commons_search(search_query)
-                if best_candidate(brand, query, candidates, year):
+                if best_candidate(brand, cleaned_query, candidates, year,
+                                  optional_tokens, size_tokens):
                     break
             except Exception as exc:
                 print(f"  ! search failed for {name}: {exc}", flush=True)
 
-        match = best_candidate(brand, query, candidates, year)
+        match = best_candidate(brand, cleaned_query, candidates, year,
+                               optional_tokens, size_tokens)
         saved = False
         if match:
             _, title, url = match

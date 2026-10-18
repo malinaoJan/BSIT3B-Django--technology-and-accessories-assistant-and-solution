@@ -184,6 +184,46 @@ def _solution_search(qs, query):
     )
 
 
+def _load_legacy_names(path, key):
+    import os as _os
+    _p = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))), path)
+    _ns = {}
+    with open(_p, encoding='utf-8') as _fh:
+        exec(_fh.read(), _ns)
+    return {item[1] for items in _ns[key].values() for item in items}
+
+
+_LEGACY_PRODUCTS = None
+_LEGACY_ACCESSORIES = None
+
+
+def _legacy_product_names():
+    global _LEGACY_PRODUCTS
+    if _LEGACY_PRODUCTS is None:
+        _LEGACY_PRODUCTS = _load_legacy_names('old_products_data.py', 'OLD_PRODUCTS')
+    return _LEGACY_PRODUCTS
+
+
+def _legacy_accessory_names():
+    global _LEGACY_ACCESSORIES
+    if _LEGACY_ACCESSORIES is None:
+        _LEGACY_ACCESSORIES = _load_legacy_names('old_accessories_data.py', 'OLD_ACCESSORIES')
+    return _LEGACY_ACCESSORIES
+
+
+def _new_first(qs, legacy_names):
+    """Order a Product/Accessory queryset so current (non-legacy) items come first,
+    then legacy items — each group newest-first by created_at."""
+    from django.db.models import Case, When, Value, IntegerField
+    return qs.annotate(
+        _legacy=Case(
+            When(name__in=legacy_names, then=Value(1)),
+            default=Value(0),
+            output_field=IntegerField(),
+        )
+    ).order_by('_legacy', '-created_at')
+
+
 @login_required(login_url='login')
 def home(request):
     from apps.info.models import Info
@@ -206,13 +246,13 @@ def home(request):
     if search_query:
         product_matches = _product_search(
             Product.objects.select_related('category'), search_query
-        )
+        ).order_by('-created_at')
         accessory_matches = _accessory_search(
             Accessory.objects.select_related('category'), search_query
-        )
+        ).order_by('-created_at')
         solution_matches = _solution_search(
             Solution.objects.select_related('category', 'related_product'), search_query
-        )
+        ).order_by('-created_at')
         product_result_count = product_matches.count()
         accessory_result_count = accessory_matches.count()
         solution_result_count = solution_matches.count()
@@ -220,9 +260,13 @@ def home(request):
         accessories = accessory_matches[:6]
         solutions = solution_matches[:6]
     else:
-        products = Product.objects.select_related('category').all()[:6]
-        accessories = Accessory.objects.select_related('category').all()[:6]
-        solutions = Solution.objects.select_related('category', 'related_product').all()[:6]
+        products = _new_first(
+            Product.objects.select_related('category').all(), _legacy_product_names()
+        )[:6]
+        accessories = _new_first(
+            Accessory.objects.select_related('category').all(), _legacy_accessory_names()
+        )[:6]
+        solutions = Solution.objects.select_related('category', 'related_product').all().order_by('-created_at')[:6]
 
     return render(request, 'home.html', {
         'total_users': total_users,
@@ -315,12 +359,18 @@ def brand_detail(request, brand):
         raise Http404('Brand not found.')
     query = request.GET.get('q', '').strip()
 
-    products = Product.objects.filter(brand__iexact=canonical).select_related('category')
-    accessories = Accessory.objects.filter(brand__iexact=canonical).select_related('category')
+    products = _new_first(
+        Product.objects.filter(brand__iexact=canonical).select_related('category'),
+        _legacy_product_names(),
+    )
+    accessories = _new_first(
+        Accessory.objects.filter(brand__iexact=canonical).select_related('category'),
+        _legacy_accessory_names(),
+    )
     solutions = Solution.objects.filter(
         Q(related_product__brand__iexact=canonical)
         | (Q(related_product__isnull=True) & Q(title__icontains=canonical))
-    ).select_related('category', 'related_product')
+    ).select_related('category', 'related_product').order_by('-created_at')
     if query:
         products = _product_search(products, query)
         accessories = _accessory_search(accessories, query)
@@ -342,7 +392,7 @@ def product_list(request):
 
     query = request.GET.get('q', '').strip()
     active_brand = request.GET.get('brand', '').strip()
-    qs = Product.objects.select_related('category').all()
+    qs = _new_first(Product.objects.select_related('category').all(), _legacy_product_names())
     if active_brand:
         qs = qs.filter(brand__iexact=active_brand)
     if query:
@@ -359,7 +409,7 @@ def accessory_list(request):
 
     query = request.GET.get('q', '').strip()
     active_brand = request.GET.get('brand', '').strip()
-    qs = Accessory.objects.select_related('category').all()
+    qs = _new_first(Accessory.objects.select_related('category').all(), _legacy_accessory_names())
     if active_brand:
         qs = qs.filter(brand__iexact=active_brand)
     if query:
@@ -441,7 +491,7 @@ def solution_list(request):
 
     query = request.GET.get('q', '').strip()
     active_brand = request.GET.get('brand', '').strip()
-    qs = Solution.objects.select_related('category', 'related_product').all()
+    qs = Solution.objects.select_related('category', 'related_product').all().order_by('-created_at')
     if active_brand:
         qs = qs.filter(
             Q(related_product__brand__iexact=active_brand)

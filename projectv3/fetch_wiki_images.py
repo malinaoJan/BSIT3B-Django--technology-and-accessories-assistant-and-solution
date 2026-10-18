@@ -29,7 +29,7 @@ with open("projectv3/fetch_old_images.py", encoding="utf-8") as _fh:
 WIKI = "https://en.wikipedia.org/w/api.php"
 
 
-def wiki_search(query, limit=10):
+def wiki_search(query, limit=20):
     key = f"WIKI|{query}|{limit}"
     if key in _SEARCH_CACHE:
         return _SEARCH_CACHE[key]
@@ -48,6 +48,31 @@ def wiki_search(query, limit=10):
         title = page.get("title", "")
         if source and not source.lower().endswith(".svg"):
             out.append((title, source))
+    _SEARCH_CACHE[key] = out
+    _save_cache()
+    return out
+
+
+def wiki_exact(title):
+    """Direct title lookup: catches articles search ranks too low (e.g. 'Apple TV HD')."""
+    key = f"WIKIX|{title}"
+    if key in _SEARCH_CACHE:
+        return _SEARCH_CACHE[key]
+    raw = fetch(WIKI, {
+        "action": "query", "format": "json", "titles": title,
+        "redirects": 1, "prop": "pageimages",
+        "piprop": "original|thumbnail", "pithumbsize": 900,
+    })
+    data = json.loads(raw)
+    out = []
+    for page in ((data.get("query") or {}).get("pages") or {}).values():
+        if page.get("missing") is not None:
+            continue
+        source = (page.get("original") or {}).get("source")
+        if not source:
+            source = (page.get("thumbnail") or {}).get("source")
+        if source and not source.lower().endswith(".svg"):
+            out.append((page.get("title", ""), source))
     _SEARCH_CACHE[key] = out
     _save_cache()
     return out
@@ -102,14 +127,25 @@ for index, obj in enumerate(targets, 1):
     query = re.sub(r"\s+", " ", re.sub(r"\([^)]*\)", " ", name)).strip()
 
     net_before = _NETWORK_HITS
+    cleaned_query, removed = strip_size_period(query)
+    removed_tokens = tokens(removed)
+    optional_tokens = set(removed_tokens)
+    size_tokens = {t for t in removed_tokens if t not in OPTIONAL_PERIOD_WORDS}
     candidates = []
     try:
-        candidates += wiki_search(query)
+        candidates += wiki_search(cleaned_query)
     except Exception as exc:
         print(f"  ! wiki search failed for {name}: {exc}", flush=True)
     candidates = list(dict.fromkeys(tuple(c) for c in candidates))
 
-    match = best_candidate(brand, query, candidates, year)
+    match = best_candidate(brand, cleaned_query, candidates, year, optional_tokens, size_tokens)
+    if not match:
+        # exact article-title lookup, e.g. "Apple TV HD"
+        try:
+            candidates += wiki_exact(cleaned_query)
+        except Exception as exc:
+            print(f"  ! wiki exact lookup failed for {name}: {exc}", flush=True)
+        match = best_candidate(brand, cleaned_query, candidates, year, optional_tokens, size_tokens)
     if not match:
         stats["kept"] += 1
         print(f"[{index}/{len(targets)}] keep  {name}", flush=True)
@@ -128,6 +164,6 @@ for index, obj in enumerate(targets, 1):
                 print(f"[{index}/{len(targets)}] FAIL  {name}: {exc}", flush=True)
 
     if _NETWORK_HITS != net_before:
-        time.sleep(2.0)
+        time.sleep(4.0)
 
 print("done:", stats, flush=True)

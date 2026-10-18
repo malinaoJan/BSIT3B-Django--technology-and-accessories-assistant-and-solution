@@ -468,18 +468,4 @@ OLD_ACCESSORIES = {
          "3.5mm jack devices",
          895, 9, [5, 0, 1]),
     ],
-    "TechFix": [
-        ("Chargers & Cables", "TechFix 20W Dual-Port Wall Charger",
-         "Two USB ports in one compact house-brand charger.",
-         "All TechFix cables and Micro-USB / Lightning devices",
-         395, 14, [1, 0]),
-        ("Chargers & Cables", "TechFix USB-C to USB-C Cable 2m",
-         "Braided USB-C cable for laptops, phones and power banks.",
-         "USB-C devices: TechFix 65W charger, USB-C laptops",
-         295, 16, [4, 5]),
-        ("Cases & Protection", "TechFix 15.6-inch Laptop Sleeve",
-         "Padded sleeve for full-size laptops.",
-         "Fits 15.6in laptops and chargers",
-         495, 10, [0, 4]),
-    ],
 }

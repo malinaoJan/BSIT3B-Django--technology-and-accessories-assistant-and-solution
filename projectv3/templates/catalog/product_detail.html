@@ -37,7 +37,7 @@
           {% endif %}
           <div class="d-flex align-items-center justify-content-between mt-3">
             <span class="h2 techfix-price mb-0">₱{{ product.price }}</span>
-            {% if product.stock_quantity > 0 %}<span class="badge bg-primary text-white">In stock: {{ product.stock_quantity }}</span>{% else %}<span class="badge techfix-badge-outline">Out of stock</span>{% endif %}
+            {% if product.stock_quantity == 0 %}<span class="badge techfix-badge-outline">Out of stock</span>{% endif %}
           </div>
         </div>
       </div>
@@ -71,7 +71,6 @@
                 <tr><td class="text-muted">Brand</td><td class="fw-semibold">{{ product.brand|default:"—" }}</td></tr>
                 <tr><td class="text-muted">Category</td><td>{{ product.category.name|default:"—" }}</td></tr>
                 <tr><td class="text-muted">Price</td><td class="fw-semibold techfix-price">₱{{ product.price }}</td></tr>
-                <tr><td class="text-muted">Availability</td><td>{% if product.stock_quantity > 0 %}In stock ({{ product.stock_quantity }}){% else %}Out of stock{% endif %}</td></tr>
                 <tr><td class="text-muted">Added</td><td>{{ product.created_at|date:"M j, Y" }}</td></tr>
                 <tr><td class="text-muted">Product ID</td><td>#{{ product.id }}</td></tr>
               </tbody>

@@ -4,7 +4,6 @@ Safe to re-run (get_or_create + M2M add, no duplicates).
 
 Per laptop (77 total):
   - 1 fitted accessory (sleeve case naming the laptop) linked to it
-  - links to 6 universal laptop accessories (hub/stand/cooler/mouse/chargers)
   - 2 troubleshooting solutions (rotated from a pool of 10) linked via related_product
 """
 from decimal import Decimal
@@ -13,46 +12,9 @@ from apps.core.models import Category, Product, Accessory, Solution
 lap = Category.objects.get(name="Laptops")
 trouble = Category.objects.get(name="Troubleshooting")
 cases = Category.objects.get(name="Cases & Protection")
-power = Category.objects.get(name="Chargers & Cables")
-periph = Category.objects.get(name="Peripherals")
 
 laptops = list(Product.objects.filter(category=lap).order_by("id"))
 print("laptops found:", len(laptops))
-
-# ---------- 6 universal accessories, compatible with ALL laptops ----------
-UNIVERSALS = [
-    dict(name="TechFix USB-C 6-in-1 Hub (HDMI+USB+SD+PD)", category=periph,
-         brand="TechFix", description="One-cable docking: 4K HDMI, 3x USB-A, SD/microSD, 100W pass-through charging.",
-         price=Decimal("1990.00"), compatibility_notes="Works with any laptop with a full-function USB-C port.",
-         stock_quantity=60),
-    dict(name="TechFix Aluminum Laptop Stand (Foldable)", category=periph,
-         brand="TechFix", description="Ergonomic foldable stand, 6 height levels, holds up to 17in laptops.",
-         price=Decimal("1490.00"), compatibility_notes="Fits 11-17in laptops of any brand.",
-         stock_quantity=60),
-    dict(name="TechFix Laptop Cooling Pad 15.6in (5-Fan, RGB)", category=periph,
-         brand="TechFix", description="5-fan cooling pad with adjustable height and quiet 1000RPM fans.",
-         price=Decimal("1290.00"), compatibility_notes="Fits 12-17in laptops; ideal for gaming and editing workloads.",
-         stock_quantity=50),
-    dict(name="TechFix Wireless Silent Mouse 2.4G+BT", category=periph,
-         brand="TechFix", description="Silent-click wireless mouse, Bluetooth + 2.4G receiver, 18-month battery.",
-         price=Decimal("890.00"), compatibility_notes="Pairs with any laptop via Bluetooth or USB receiver.",
-         stock_quantity=80),
-    dict(name="TechFix 65W GaN Charger + 100W USB-C Cable", category=power,
-         brand="TechFix", description="Compact 65W GaN fast charger with 1.8m 100W USB-C cable included.",
-         price=Decimal("1590.00"), compatibility_notes="Charges any USB-C laptop up to 65W (ultrabooks, school laptops).",
-         stock_quantity=70),
-    dict(name="TechFix 100W GaN Charger (Gaming Laptops)", category=power,
-         brand="TechFix", description="100W 3-port GaN charger for power-hungry laptops and phones.",
-         price=Decimal("2490.00"), compatibility_notes="For gaming/creator laptops needing 90-100W USB-C charging.",
-         stock_quantity=40),
-]
-
-uni_objs = []
-for u in UNIVERSALS:
-    obj, _ = Accessory.objects.get_or_create(
-        brand=u["brand"], name=u["name"], defaults={**u},
-    )
-    uni_objs.append(obj)
 
 # ---------- pool of 10 common laptop issues (rotated per laptop) ----------
 ISSUES = [
@@ -113,7 +75,7 @@ for i, laptop in enumerate(laptops):
     # 1) fitted sleeve accessory for this exact laptop
     sleeve_name = f"Laptop Sleeve Case for {laptop.name}"
     sleeve, made = Accessory.objects.get_or_create(
-        brand=laptop.brand or "TechFix", name=sleeve_name,
+        brand=laptop.brand, name=sleeve_name,
         defaults=dict(
             category=cases,
             description=f"Padded water-resistant sleeve tailored for the {laptop.name}.",
@@ -125,11 +87,7 @@ for i, laptop in enumerate(laptops):
     if made:
         acc_new += 1
     sleeve.compatible_products.add(laptop)
-    # 2) link all universals
-    for u in uni_objs:
-        u.compatible_products.add(laptop)
-
-    # 3) two rotated solutions
+    # 2) two rotated solutions
     for k in (0, 1):
         title, prob, steps, diff = ISSUES[(i * 2 + k) % len(ISSUES)]
         full_title = f"{title} — {laptop.name}"
