@@ -1,15 +1,15 @@
 # TECHFIX System — Database & ERD
 
 **Project:** `projectv3` (Django `apps.core` + `apps.info` + `apps.users`/auth)
-**Source of truth:** `apps/core/models.py`, `apps/info/models.py`, `apps/scoping.py`
-**Generated:** 2026-10-16
+**Source of truth:** `apps/core/models.py`, `apps/info/models.py`, `apps/scoping.py`, live `db.sqlite3`
+**Generated:** 2026-10-28
 
 ## Files in this folder
 
 | File | Purpose |
 |---|---|
-| `techfix_database.sql` | Full database for **MySQL / MariaDB** (`CREATE DATABASE techfix_db` + 7 tables + PK/FK/indexes/checks). Import with phpMyAdmin or `mysql < techfix_database.sql`. |
-| `techfix_database_sqlite.sql` | Same schema for **SQLite** (what the project runs on by default). Apply with `sqlite3 techfix.db < techfix_database_sqlite.sql`. |
+| `techfix_database.sql` | Full database for **MySQL / MariaDB** (`CREATE DATABASE techfix_db` + 16 tables: 10 Django framework + 6 app tables, with PK/FK/indexes/checks). Import with phpMyAdmin or `mysql < techfix_database.sql`. |
+| `techfix_database_sqlite.sql` | Same schema for **SQLite** (what the project runs on by default). Apply with `sqlite3 db.sqlite3 < techfix_database_sqlite.sql`. |
 | `ERD.mmd` | Editable ERD source (Mermaid `erDiagram`). Paste into https://mermaid.live or any Mermaid viewer. |
 | `ERD.puml` | Editable ERD source (PlantUML). Open with a PlantUML plugin or http://www.plantuml.com/plantuml/uml. |
 | `ERD.svg` | Vector diagram (opens in any browser, scales for reports). |
@@ -60,13 +60,13 @@ erDiagram
 | Column | Type | Key | Notes |
 |---|---|---|---|
 | id | BIGINT AI | PK | table `techfix_product` |
-| name | VARCHAR(255) | IDX | |
+| name | VARCHAR(255) | | |
 | category_id | BIGINT NULL | FK → category.id | `SET NULL`, `related_name='products'` |
 | brand | VARCHAR(100) | | |
 | description | TEXT | | |
 | specifications | TEXT | | RAM, CPU, Storage, etc. |
-| price | DECIMAL(10,2) | | default 0 |
-| stock_quantity | INT UNSIGNED | | default 0 |
+| price | DECIMAL(10,2) | | Django default 0 |
+| stock_quantity | INT UNSIGNED | | Django default 0; DB CHECK >= 0 |
 | image | VARCHAR(100) NULL | | `upload_to='products/'` |
 | created_at / updated_at | DATETIME | | |
 
@@ -74,13 +74,13 @@ erDiagram
 | Column | Type | Key | Notes |
 |---|---|---|---|
 | id | BIGINT AI | PK | table `techfix_accessory` |
-| name | VARCHAR(255) | IDX | |
+| name | VARCHAR(255) | | |
 | category_id | BIGINT NULL | FK → category.id | `SET NULL`, `related_name='accessories'` |
 | brand | VARCHAR(100) | | |
 | description | TEXT | | |
-| price | DECIMAL(10,2) | | |
+| price | DECIMAL(10,2) | | Django default 0 |
 | compatibility_notes | TEXT | | ex. Compatible with USB-C laptops |
-| stock_quantity | INT UNSIGNED | | |
+| stock_quantity | INT UNSIGNED | | Django default 0; DB CHECK >= 0 |
 | image | VARCHAR(100) NULL | | `upload_to='accessories/'` |
 | created_at | DATETIME | | |
 
@@ -99,7 +99,7 @@ erDiagram
 | title | VARCHAR(255) | | |
 | problem_description | TEXT | | symptoms / common issue |
 | steps | TEXT | | Step 1, Step 2, … |
-| difficulty_level | VARCHAR(10) | IDX | `Easy` / `Medium` / `Hard` (CHECK) |
+| difficulty_level | VARCHAR(10) | | `Easy` / `Medium` / `Hard` (Django choices) |
 | category_id | BIGINT NULL | FK → category.id | `SET NULL` |
 | related_product_id | BIGINT NULL | FK → product.id | `SET NULL`, `related_name='solutions'` |
 | video_url | VARCHAR(200) | | blank allowed |
@@ -109,12 +109,31 @@ erDiagram
 | Column | Type | Key | Notes |
 |---|---|---|---|
 | id | BIGINT AI | PK | `db_table='tblinfo'`, ordering by name |
-| name | VARCHAR(255) | IDX | |
-| age | INT (1–150) | | CHECK 1..150 |
+| name | VARCHAR(255) | | |
+| age | INT UNSIGNED | | Django validators 1–150; DB CHECK >= 0 |
 | address | VARCHAR(255) | | |
 | email | VARCHAR(255) | | blank allowed |
 | user_id | INT NULL | FK → auth_user.id | `CASCADE`, `related_name='infos'` |
 | created_at / updated_at | DATETIME | | |
+
+## Supporting Django tables (not domain entities)
+
+The ERD above shows the 7 domain/auth entities. The database also needs these
+Django framework tables to run; both SQL scripts create them:
+
+| Table | Purpose |
+|---|---|
+| `django_migrations` | Migration history used by `manage.py migrate` |
+| `django_content_type` | Model/content-type registry |
+| `auth_permission` | Permission definitions |
+| `auth_group` | User groups |
+| `auth_group_permissions` | M:N group → permission |
+| `auth_user_groups` | M:N user → group |
+| `auth_user_user_permissions` | M:N user → permission |
+| `django_admin_log` | Django admin change history |
+| `django_session` | Login sessions |
+
+`auth_user` is shown in the ERD because `tblinfo.user_id` references it.
 
 ## Relationships (crow's foot: 1 ──∞)
 
@@ -129,13 +148,18 @@ erDiagram
 
 ## How to use
 
-**MySQL / phpMyAdmin (database `bsitcrud` or `techfix_db`):**
+**MySQL / phpMyAdmin (database `techfix_db`):**
 1. Open phpMyAdmin → Import → choose `techfix_database.sql` → Go.
 2. Or CLI: `mysql -u root < SQL/techfix_database.sql`.
+3. Then record the migrations once: `python manage.py migrate --fake`.
+   (Update the MySQL `NAME` comment in `mysite/settings.py` if you switch the
+   project from SQLite to MySQL.)
 
 **SQLite (project default):**
 `sqlite3 db.sqlite3 < SQL/techfix_database_sqlite.sql`
-(or just run `python manage.py migrate` — Django creates the identical tables).
+then `python manage.py migrate --fake` once to record the migrations.
+For a normal install, just run `python manage.py migrate` on an empty database —
+Django creates the identical tables.
 
 **ERD for documentation:**
 - Word/PPT/PDF → insert `ERD.png`.
@@ -143,6 +167,7 @@ erDiagram
 - Editing → modify `ERD.mmd` / `ERD.puml` and re-export.
 
 ## Notes / assumptions
-- Only the **current** system is modeled (core + info + auth_user). Stale tables still present in the old `db.sqlite3`/`bsitcrud.sql` dump (`catalog_*`, `tblcourse`, `tblstudents`, `tblattendance`, `tblquiz*`, etc.) are legacy and **not** part of this ERD, since they have no models in `projectv3/apps/`.
+- Only the **current** system is modeled (core + info + Django built-ins + auth_user). Stale tables still present in the old `db.sqlite3`/`bsitcrud.sql` dump (`catalog_*`, `tblcourse`, `tblstudents`, `tblattendance`, `tblquiz*`, etc.) are legacy and **not** part of this ERD, since they have no models in `projectv3/apps/`.
 - `apps.users` has no custom model (`models.py` is empty), so the standard `auth_user` table is used.
-- Cardinalities and `ON DELETE` rules are taken directly from the `on_delete=` arguments in `apps/core/models.py` and `apps/info/models.py`.
+- Cardinalities and `ON DELETE` rules are taken directly from the `on_delete=` arguments in `apps/core/models.py` and `apps/info/models.py`. Django enforces them in Python, so the SQL scripts create plain FKs (no SQL-level `ON DELETE` actions), matching the real Django schema.
+- Both SQL files mirror the current live schema (`makemigrations --check` reports no changes) and include the Django framework tables required to run the project.

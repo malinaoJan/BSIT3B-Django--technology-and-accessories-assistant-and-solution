@@ -1,6 +1,9 @@
 ' TECHFIX System — ERD (PlantUML)
 ' Open with PlantUML plugin / http://www.plantuml.com/plantuml/uml
 ' Files: SQL/ERD.puml | Rendered: SQL/ERD.png, SQL/ERD.svg
+' Generated: 2026-10-28
+' Django framework tables (auth_*, django_*) are omitted here for clarity;
+' see ERD.md and the SQL scripts for the complete 16-table schema.
 
 @startuml techfix_erd
 !define PRIMARY_KEY(x) <b><color:#1a73e8>x</color></b>

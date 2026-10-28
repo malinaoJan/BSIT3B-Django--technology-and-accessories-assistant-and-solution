@@ -92,11 +92,12 @@ WSGI_APPLICATION = 'mysite.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 # Use SQLite by default so the project runs without a MySQL server.
-# To use MySQL (database `bsitcrud`), install `mysqlclient` and set:
+# To use MySQL (database `techfix_db`, schema in SQL/techfix_database.sql),
+# install `mysqlclient` and set:
 #   DATABASES = {
 #       'default': {
 #           'ENGINE': 'django.db.backends.mysql',
-#           'NAME': 'bsitcrud',
+#           'NAME': 'techfix_db',
 #           'USER': 'root',
 #           'PASSWORD': '',
 #           'HOST': 'localhost',

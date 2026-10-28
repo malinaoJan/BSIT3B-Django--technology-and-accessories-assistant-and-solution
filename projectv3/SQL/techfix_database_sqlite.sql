@@ -1,107 +1,227 @@
 -- ============================================================
 -- TECHFIX System Database — SQLite version
--- Same schema as techfix_database.sql, adapted for SQLite.
--- This matches what Django creates via:
---   python manage.py sqlmigrate core 0001_initial
---   python manage.py sqlmigrate info 0001_initial
---   + Django's built-in auth_user table.
--- To apply: sqlite3 techfix.db < techfix_database_sqlite.sql
+-- Project: projectv3 (Django 6.1.2: apps.core + apps.info + Django built-ins)
+-- Generated: 2026-10-28
+--
+-- Exact schema Django creates today via:
+--   python manage.py migrate
+-- (contenttypes.0001, auth.0001..0012, admin.0001..0003, sessions.0001,
+--  core.0001_initial, info.0001_initial)
+--
+-- Domain tables:
+--   techfix_category, techfix_product, techfix_accessory,
+--   techfix_accessory_compatible_products, techfix_solution, tblinfo
+--
+-- Supporting Django tables:
+--   django_migrations, django_content_type, auth_permission, auth_group,
+--   auth_user, auth_group_permissions, auth_user_groups,
+--   auth_user_user_permissions, django_admin_log, django_session
+--
+-- To apply to an empty database:
+--   sqlite3 db.sqlite3 < techfix_database_sqlite.sql
+-- Then record the migrations once:
+--   python manage.py migrate --fake
+-- (For a normal install, just run `python manage.py migrate` instead.)
 -- ============================================================
 
 PRAGMA foreign_keys = OFF;
 
--- auth_user (Django default)
-CREATE TABLE IF NOT EXISTS "auth_user" (
-  "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-  "password" VARCHAR(128) NOT NULL,
-  "last_login" DATETIME NULL,
-  "is_superuser" BOOLEAN NOT NULL DEFAULT 0,
-  "username" VARCHAR(150) NOT NULL UNIQUE,
-  "first_name" VARCHAR(150) NOT NULL DEFAULT '',
-  "last_name" VARCHAR(150) NOT NULL DEFAULT '',
-  "email" VARCHAR(254) NOT NULL DEFAULT '',
-  "is_staff" BOOLEAN NOT NULL DEFAULT 0,
-  "is_active" BOOLEAN NOT NULL DEFAULT 1,
-  "date_joined" DATETIME NOT NULL
+-- ============================================================
+-- Django framework tables
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS "django_migrations" (
+  "id" integer NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "app" varchar(255) NOT NULL,
+  "name" varchar(255) NOT NULL,
+  "applied" datetime NOT NULL
 );
-CREATE INDEX IF NOT EXISTS "idx_auth_user_username" ON "auth_user" ("username");
+
+CREATE TABLE IF NOT EXISTS "django_content_type" (
+  "id" integer NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "app_label" varchar(100) NOT NULL,
+  "model" varchar(100) NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "django_content_type_app_label_model_76bd3d3b_uniq"
+  ON "django_content_type" ("app_label", "model");
+
+CREATE TABLE IF NOT EXISTS "auth_permission" (
+  "id" integer NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "content_type_id" integer NOT NULL REFERENCES "django_content_type" ("id") DEFERRABLE INITIALLY DEFERRED,
+  "codename" varchar(100) NOT NULL,
+  "name" varchar(255) NOT NULL
+);
+CREATE INDEX IF NOT EXISTS "auth_permission_content_type_id_2f476e4b"
+  ON "auth_permission" ("content_type_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "auth_permission_content_type_id_codename_01ab375a_uniq"
+  ON "auth_permission" ("content_type_id", "codename");
+
+CREATE TABLE IF NOT EXISTS "auth_group" (
+  "id" integer NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "name" varchar(150) NOT NULL UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS "auth_user" (
+  "id" integer NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "password" varchar(128) NOT NULL,
+  "last_login" datetime NULL,
+  "is_superuser" bool NOT NULL,
+  "username" varchar(150) NOT NULL UNIQUE,
+  "last_name" varchar(150) NOT NULL,
+  "email" varchar(254) NOT NULL,
+  "is_staff" bool NOT NULL,
+  "is_active" bool NOT NULL,
+  "date_joined" datetime NOT NULL,
+  "first_name" varchar(150) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS "auth_group_permissions" (
+  "id" integer NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "group_id" integer NOT NULL REFERENCES "auth_group" ("id") DEFERRABLE INITIALLY DEFERRED,
+  "permission_id" integer NOT NULL REFERENCES "auth_permission" ("id") DEFERRABLE INITIALLY DEFERRED
+);
+CREATE INDEX IF NOT EXISTS "auth_group_permissions_group_id_b120cbf9"
+  ON "auth_group_permissions" ("group_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "auth_group_permissions_group_id_permission_id_0cd325b0_uniq"
+  ON "auth_group_permissions" ("group_id", "permission_id");
+CREATE INDEX IF NOT EXISTS "auth_group_permissions_permission_id_84c5c92e"
+  ON "auth_group_permissions" ("permission_id");
+
+CREATE TABLE IF NOT EXISTS "auth_user_groups" (
+  "id" integer NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "user_id" integer NOT NULL REFERENCES "auth_user" ("id") DEFERRABLE INITIALLY DEFERRED,
+  "group_id" integer NOT NULL REFERENCES "auth_group" ("id") DEFERRABLE INITIALLY DEFERRED
+);
+CREATE INDEX IF NOT EXISTS "auth_user_groups_group_id_97559544"
+  ON "auth_user_groups" ("group_id");
+CREATE INDEX IF NOT EXISTS "auth_user_groups_user_id_6a12ed8b"
+  ON "auth_user_groups" ("user_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "auth_user_groups_user_id_group_id_94350c0c_uniq"
+  ON "auth_user_groups" ("user_id", "group_id");
+
+CREATE TABLE IF NOT EXISTS "auth_user_user_permissions" (
+  "id" integer NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "user_id" integer NOT NULL REFERENCES "auth_user" ("id") DEFERRABLE INITIALLY DEFERRED,
+  "permission_id" integer NOT NULL REFERENCES "auth_permission" ("id") DEFERRABLE INITIALLY DEFERRED
+);
+CREATE INDEX IF NOT EXISTS "auth_user_user_permissions_permission_id_1fbb5f2c"
+  ON "auth_user_user_permissions" ("permission_id");
+CREATE INDEX IF NOT EXISTS "auth_user_user_permissions_user_id_a95ead1b"
+  ON "auth_user_user_permissions" ("user_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "auth_user_user_permissions_user_id_permission_id_14a6b632_uniq"
+  ON "auth_user_user_permissions" ("user_id", "permission_id");
+
+CREATE TABLE IF NOT EXISTS "django_admin_log" (
+  "id" integer NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "object_id" text NULL,
+  "object_repr" varchar(200) NOT NULL,
+  "action_flag" smallint unsigned NOT NULL CHECK ("action_flag" >= 0),
+  "change_message" text NOT NULL,
+  "content_type_id" integer NULL REFERENCES "django_content_type" ("id") DEFERRABLE INITIALLY DEFERRED,
+  "user_id" integer NOT NULL REFERENCES "auth_user" ("id") DEFERRABLE INITIALLY DEFERRED,
+  "action_time" datetime NOT NULL
+);
+CREATE INDEX IF NOT EXISTS "django_admin_log_content_type_id_c4bce8eb"
+  ON "django_admin_log" ("content_type_id");
+CREATE INDEX IF NOT EXISTS "django_admin_log_user_id_c564eba6"
+  ON "django_admin_log" ("user_id");
+
+CREATE TABLE IF NOT EXISTS "django_session" (
+  "session_key" varchar(40) NOT NULL PRIMARY KEY,
+  "session_data" text NOT NULL,
+  "expire_date" datetime NOT NULL
+);
+CREATE INDEX IF NOT EXISTS "django_session_expire_date_a5c62663"
+  ON "django_session" ("expire_date");
+
+-- ============================================================
+-- Application tables (apps.core / apps.info)
+-- ============================================================
 
 -- techfix_category
 CREATE TABLE IF NOT EXISTS "techfix_category" (
-  "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-  "name" VARCHAR(100) NOT NULL UNIQUE,
-  "description" TEXT NOT NULL DEFAULT '',
-  "created_at" DATETIME NOT NULL
+  "id" integer NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "name" varchar(100) NOT NULL UNIQUE,
+  "description" text NOT NULL,
+  "created_at" datetime NOT NULL
 );
 
 -- techfix_product
 CREATE TABLE IF NOT EXISTS "techfix_product" (
-  "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-  "name" VARCHAR(255) NOT NULL,
-  "category_id" BIGINT NULL REFERENCES "techfix_category" ("id") ON DELETE SET NULL,
-  "brand" VARCHAR(100) NOT NULL DEFAULT '',
-  "description" TEXT NOT NULL DEFAULT '',
-  "specifications" TEXT NOT NULL DEFAULT '',
-  "price" DECIMAL(10, 2) NOT NULL DEFAULT 0,
-  "stock_quantity" INTEGER UNSIGNED NOT NULL DEFAULT 0 CHECK ("stock_quantity" >= 0),
-  "image" VARCHAR(100) NULL,
-  "created_at" DATETIME NOT NULL,
-  "updated_at" DATETIME NOT NULL
+  "id" integer NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "name" varchar(255) NOT NULL,
+  "brand" varchar(100) NOT NULL,
+  "description" text NOT NULL,
+  "specifications" text NOT NULL,
+  "price" decimal NOT NULL,
+  "stock_quantity" integer unsigned NOT NULL CHECK ("stock_quantity" >= 0),
+  "image" varchar(100) NULL,
+  "created_at" datetime NOT NULL,
+  "updated_at" datetime NOT NULL,
+  "category_id" bigint NULL REFERENCES "techfix_category" ("id") DEFERRABLE INITIALLY DEFERRED
 );
-CREATE INDEX IF NOT EXISTS "idx_product_category" ON "techfix_product" ("category_id");
+CREATE INDEX IF NOT EXISTS "techfix_product_category_id_d7b87187"
+  ON "techfix_product" ("category_id");
 
 -- techfix_accessory
 CREATE TABLE IF NOT EXISTS "techfix_accessory" (
-  "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-  "name" VARCHAR(255) NOT NULL,
-  "category_id" BIGINT NULL REFERENCES "techfix_category" ("id") ON DELETE SET NULL,
-  "brand" VARCHAR(100) NOT NULL DEFAULT '',
-  "description" TEXT NOT NULL DEFAULT '',
-  "price" DECIMAL(10, 2) NOT NULL DEFAULT 0,
-  "compatibility_notes" TEXT NOT NULL DEFAULT '',
-  "stock_quantity" INTEGER UNSIGNED NOT NULL DEFAULT 0 CHECK ("stock_quantity" >= 0),
-  "image" VARCHAR(100) NULL,
-  "created_at" DATETIME NOT NULL
+  "id" integer NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "name" varchar(255) NOT NULL,
+  "brand" varchar(100) NOT NULL,
+  "description" text NOT NULL,
+  "price" decimal NOT NULL,
+  "compatibility_notes" text NOT NULL,
+  "stock_quantity" integer unsigned NOT NULL CHECK ("stock_quantity" >= 0),
+  "image" varchar(100) NULL,
+  "created_at" datetime NOT NULL,
+  "category_id" bigint NULL REFERENCES "techfix_category" ("id") DEFERRABLE INITIALLY DEFERRED
 );
-CREATE INDEX IF NOT EXISTS "idx_accessory_category" ON "techfix_accessory" ("category_id");
+CREATE INDEX IF NOT EXISTS "techfix_accessory_category_id_fe43e20e"
+  ON "techfix_accessory" ("category_id");
 
--- M:N junction: accessory <-> product
+-- techfix_accessory_compatible_products (M:N junction)
 CREATE TABLE IF NOT EXISTS "techfix_accessory_compatible_products" (
-  "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-  "accessory_id" BIGINT NOT NULL REFERENCES "techfix_accessory" ("id") ON DELETE CASCADE,
-  "product_id" BIGINT NOT NULL REFERENCES "techfix_product" ("id") ON DELETE CASCADE,
-  UNIQUE ("accessory_id", "product_id")
+  "id" integer NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "accessory_id" bigint NOT NULL REFERENCES "techfix_accessory" ("id") DEFERRABLE INITIALLY DEFERRED,
+  "product_id" bigint NOT NULL REFERENCES "techfix_product" ("id") DEFERRABLE INITIALLY DEFERRED
 );
-CREATE INDEX IF NOT EXISTS "idx_junction_accessory" ON "techfix_accessory_compatible_products" ("accessory_id");
-CREATE INDEX IF NOT EXISTS "idx_junction_product" ON "techfix_accessory_compatible_products" ("product_id");
+CREATE INDEX IF NOT EXISTS "techfix_accessory_compatible_products_accessory_id_2bdcbf14"
+  ON "techfix_accessory_compatible_products" ("accessory_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "techfix_accessory_compatible_products_accessory_id_product_id_f86249ad_uniq"
+  ON "techfix_accessory_compatible_products" ("accessory_id", "product_id");
+CREATE INDEX IF NOT EXISTS "techfix_accessory_compatible_products_product_id_10161dcf"
+  ON "techfix_accessory_compatible_products" ("product_id");
 
 -- techfix_solution
 CREATE TABLE IF NOT EXISTS "techfix_solution" (
-  "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-  "title" VARCHAR(255) NOT NULL,
-  "problem_description" TEXT NOT NULL DEFAULT '',
-  "steps" TEXT NOT NULL DEFAULT '',
-  "difficulty_level" VARCHAR(10) NOT NULL DEFAULT 'Easy' CHECK ("difficulty_level" IN ('Easy','Medium','Hard')),
-  "category_id" BIGINT NULL REFERENCES "techfix_category" ("id") ON DELETE SET NULL,
-  "related_product_id" BIGINT NULL REFERENCES "techfix_product" ("id") ON DELETE SET NULL,
-  "video_url" VARCHAR(200) NOT NULL DEFAULT '',
-  "created_at" DATETIME NOT NULL,
-  "updated_at" DATETIME NOT NULL
+  "id" integer NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "title" varchar(255) NOT NULL,
+  "problem_description" text NOT NULL,
+  "steps" text NOT NULL,
+  "difficulty_level" varchar(10) NOT NULL,
+  "video_url" varchar(200) NOT NULL,
+  "created_at" datetime NOT NULL,
+  "updated_at" datetime NOT NULL,
+  "category_id" bigint NULL REFERENCES "techfix_category" ("id") DEFERRABLE INITIALLY DEFERRED,
+  "related_product_id" bigint NULL REFERENCES "techfix_product" ("id") DEFERRABLE INITIALLY DEFERRED
 );
-CREATE INDEX IF NOT EXISTS "idx_solution_category" ON "techfix_solution" ("category_id");
-CREATE INDEX IF NOT EXISTS "idx_solution_product" ON "techfix_solution" ("related_product_id");
+CREATE INDEX IF NOT EXISTS "techfix_solution_category_id_9a5aaa3e"
+  ON "techfix_solution" ("category_id");
+CREATE INDEX IF NOT EXISTS "techfix_solution_related_product_id_d34e2db7"
+  ON "techfix_solution" ("related_product_id");
 
 -- tblinfo (apps.info.Info)
 CREATE TABLE IF NOT EXISTS "tblinfo" (
-  "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-  "name" VARCHAR(255) NOT NULL,
-  "age" INTEGER UNSIGNED NOT NULL CHECK ("age" >= 0),
-  "address" VARCHAR(255) NOT NULL,
-  "email" VARCHAR(255) NOT NULL DEFAULT '',
-  "user_id" INTEGER NULL REFERENCES "auth_user" ("id") ON DELETE CASCADE,
-  "created_at" DATETIME NOT NULL,
-  "updated_at" DATETIME NOT NULL
+  "id" integer NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "name" varchar(255) NOT NULL,
+  "age" integer unsigned NOT NULL CHECK ("age" >= 0),
+  "address" varchar(255) NOT NULL,
+  "email" varchar(255) NOT NULL,
+  "created_at" datetime NOT NULL,
+  "updated_at" datetime NOT NULL,
+  "user_id" integer NULL REFERENCES "auth_user" ("id") DEFERRABLE INITIALLY DEFERRED
 );
-CREATE INDEX IF NOT EXISTS "idx_tblinfo_user" ON "tblinfo" ("user_id");
+CREATE INDEX IF NOT EXISTS "tblinfo_user_id_4a36749d"
+  ON "tblinfo" ("user_id");
 
 PRAGMA foreign_keys = ON;
