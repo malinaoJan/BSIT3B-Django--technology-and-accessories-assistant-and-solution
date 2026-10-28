@@ -35,6 +35,7 @@ BRAND_LOGOS = {
     'logitech': 'logitech.png',
     'microsoft': 'microsoft.png',
     'msi': 'msi.svg',
+    'nokia': 'nokia.svg',
     'oneplus': 'oneplus.svg',
     'oppo': 'oppo.svg',
     'razer': 'razer.svg',

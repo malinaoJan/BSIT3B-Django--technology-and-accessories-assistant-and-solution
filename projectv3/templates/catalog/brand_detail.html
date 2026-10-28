@@ -11,7 +11,7 @@
         {% if logo %}<span class="brand-logo brand-logo-lg"><img src="{{ logo }}" alt="{{ brand }} logo"></span>{% else %}<span class="brand-mono brand-mono-lg">{{ brand|first|upper }}</span>{% endif %}
         {% endwith %}
         <div class="flex-grow-1 min-w-0">
-          <div class="page-pretitle" style="color:rgba(255,255,255,0.75);">Brand folder</div>
+          <div class="page-pretitle">Brand folder</div>
           <h2 class="page-title mb-1" style="font-size:1.7rem;">{{ brand }}</h2>
           <div class="d-flex gap-2 flex-wrap">
             <span class="brand-count-chip"><i class="fas fa-laptop"></i>{{ product_count }} Products</span>
@@ -106,7 +106,7 @@
         <div class="text-muted mt-1" style="font-size:.9rem;"><strong>Problem:</strong> {{ solution.problem_description|truncatewords:25 }}</div>
         <div class="text-muted mt-1" style="font-size:.9rem;"><strong>Fix:</strong> {{ solution.steps|truncatewords:30 }}</div>
         <div class="mt-2 d-flex gap-1 flex-wrap">
-          <span class="badge {% if solution.difficulty_level == 'Easy' %}techfix-badge-ghost{% elif solution.difficulty_level == 'Medium' %}bg-primary text-white{% else %}techfix-badge-outline{% endif %}">{{ solution.difficulty_level }}</span>
+          <span class="badge {% if solution.difficulty_level == 'Easy' %}techfix-badge-easy{% elif solution.difficulty_level == 'Medium' %}techfix-badge-medium{% else %}techfix-badge-hard{% endif %}">{{ solution.difficulty_level }}</span>
           {% if solution.category %}<span class="badge techfix-badge-ghost">{{ solution.category.name }}</span>{% endif %}
           {% if solution.related_product %}<span class="badge bg-primary text-white">{{ solution.related_product.name }}</span>{% endif %}
         </div>

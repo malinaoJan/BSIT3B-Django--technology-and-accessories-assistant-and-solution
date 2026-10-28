@@ -12,6 +12,9 @@ from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_http_methods, require_POST
 
+from .assistant import build_answer, search_terms
+from .gemini import enhance_answer
+
 User = get_user_model()
 
 MAX_FAILED_ATTEMPTS = 5
@@ -153,35 +156,43 @@ def logout_view(request):
     return redirect('login')
 
 
+def _search_filter(query, fields):
+    terms = search_terms(query)
+    if not terms:
+        return Q(pk__in=[])
+    condition = Q()
+    for term in terms:
+        for field in fields:
+            condition |= Q(**{field + '__icontains': term})
+    return condition
+
+
 def _product_search(qs, query):
-    """Full-field product search: name, brand, description, specs, category."""
+    """Full-field product search across every meaningful query term."""
     return qs.filter(
-        Q(name__icontains=query) | Q(brand__icontains=query)
-        | Q(description__icontains=query) | Q(specifications__icontains=query)
-        | Q(category__name__icontains=query)
-    )
+        _search_filter(query, [
+            'name', 'brand', 'description', 'specifications', 'category__name',
+        ])
+    ).distinct()
 
 
 def _accessory_search(qs, query):
-    """Full-field accessory search: name, brand, description, compatibility, category."""
+    """Full-field accessory search across every meaningful query term."""
     return qs.filter(
-        Q(name__icontains=query) | Q(brand__icontains=query)
-        | Q(description__icontains=query) | Q(compatibility_notes__icontains=query)
-        | Q(category__name__icontains=query)
-    )
+        _search_filter(query, [
+            'name', 'brand', 'description', 'compatibility_notes', 'category__name',
+        ])
+    ).distinct()
 
 
 def _solution_search(qs, query):
-    """Full-field solution search: title, problem, steps, difficulty, category, linked product."""
+    """Full-field repair guide search across every meaningful query term."""
     return qs.filter(
-        Q(title__icontains=query)
-        | Q(problem_description__icontains=query)
-        | Q(steps__icontains=query)
-        | Q(difficulty_level__icontains=query)
-        | Q(category__name__icontains=query)
-        | Q(related_product__name__icontains=query)
-        | Q(related_product__brand__icontains=query)
-    )
+        _search_filter(query, [
+            'title', 'problem_description', 'steps', 'difficulty_level',
+            'category__name', 'related_product__name', 'related_product__brand',
+        ])
+    ).distinct()
 
 
 def _load_legacy_names(path, key):
@@ -242,8 +253,19 @@ def home(request):
 
     # Technology and Accessories Assistant and Solution data
     search_query = request.GET.get('q', '').strip()
-    product_result_count = accessory_result_count = solution_result_count = 0
+    assistant_answer = None
     if search_query:
+        assistant_answer = enhance_answer(search_query, build_answer(search_query))
+    product_result_count = accessory_result_count = solution_result_count = 0
+    if search_query and assistant_answer and assistant_answer.get('matches'):
+        matches = assistant_answer['matches']
+        products = matches['products'][:6]
+        accessories = matches['accessories'][:6]
+        solutions = matches['solutions'][:6]
+        product_result_count = len(matches['products'])
+        accessory_result_count = len(matches['accessories'])
+        solution_result_count = len(matches['solutions'])
+    elif search_query:
         product_matches = _product_search(
             Product.objects.select_related('category'), search_query
         ).order_by('-created_at')
@@ -279,6 +301,7 @@ def home(request):
         'total_accessories': Accessory.objects.count(),
         'total_solutions': Solution.objects.count(),
         'search_query': search_query,
+        'assistant_answer': assistant_answer,
         'product_result_count': product_result_count,
         'accessory_result_count': accessory_result_count,
         'solution_result_count': solution_result_count,

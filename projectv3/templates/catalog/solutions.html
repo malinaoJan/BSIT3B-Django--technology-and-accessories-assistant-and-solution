@@ -47,6 +47,13 @@
           <div class="solution-problem flex-grow-1">
             <div class="fw-semibold">{{ solution.title }}</div>
             <div class="text-muted mt-1" style="font-size:.9rem;"><strong>Problem:</strong> {{ solution.problem_description }}</div>
+            <div class="text-muted mt-2" style="font-size:.9rem;"><strong>Fix:</strong> {{ solution.steps }}</div>
+            <div class="mt-2 d-flex gap-1 flex-wrap">
+              <span class="badge {% if solution.difficulty_level == 'Easy' %}techfix-badge-easy{% elif solution.difficulty_level == 'Medium' %}techfix-badge-medium{% else %}techfix-badge-hard{% endif %}">{{ solution.difficulty_level }}</span>
+              {% if solution.category %}<span class="badge techfix-badge-ghost">{{ solution.category.name }}</span>{% endif %}
+              {% if solution.related_product %}<span class="badge bg-primary text-white">{{ solution.related_product.name }}</span>{% endif %}
+              {% if solution.video_url %}<a href="{{ solution.video_url }}" target="_blank" rel="noopener" class="badge techfix-badge-outline text-decoration-none"><i class="fab fa-youtube me-1"></i>Video guide</a>{% endif %}
+            </div>
           </div>
           {% if solution.video_thumb %}
           {% with vb=solution.related_product.brand %}
@@ -59,13 +66,6 @@
           </a>
           {% endwith %}
           {% endif %}
-        </div>
-        <div class="text-muted mt-1" style="font-size:.9rem;"><strong>Fix:</strong> {{ solution.steps }}</div>
-        <div class="mt-2 d-flex gap-1 flex-wrap">
-          <span class="badge {% if solution.difficulty_level == 'Easy' %}techfix-badge-ghost{% elif solution.difficulty_level == 'Medium' %}bg-primary text-white{% else %}techfix-badge-outline{% endif %}">{{ solution.difficulty_level }}</span>
-          {% if solution.category %}<span class="badge techfix-badge-ghost">{{ solution.category.name }}</span>{% endif %}
-          {% if solution.related_product %}<span class="badge bg-primary text-white">{{ solution.related_product.name }}</span>{% endif %}
-          {% if solution.video_url %}<a href="{{ solution.video_url }}" target="_blank" rel="noopener" class="badge techfix-badge-outline text-decoration-none"><i class="fab fa-youtube me-1"></i>Video guide</a>{% endif %}
         </div>
       </div>
       {% empty %}

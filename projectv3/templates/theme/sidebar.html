@@ -1,152 +1,115 @@
-<aside class="navbar navbar-vertical navbar-expand-lg navbar-dark dh-sidebar">
-  <div class="container-fluid">
-    <div class="navbar-brand navbar-brand-autodark dh-brand">
-      <a href="{% url 'dashboard' %}" class="d-flex align-items-center gap-2 text-decoration-none">
-        <span class="dh-brand-mark">
-          <i class="fa-solid fa-microchip"></i>
-        </span>
-        <span class="lh-1">
-          <span class="dh-brand-name">Tech<span class="text-warning">Fix</span></span>
-          <span class="dh-brand-sub">Technology Assistant</span>
-        </span>
+{% with current=request.resolver_match.url_name app=request.resolver_match.app_name %}
+<aside class="app-sidebar" id="appSidebar" aria-label="Sidebar">
+  <div class="sidebar-head">
+    <a href="{% url 'dashboard' %}" class="sidebar-brand">
+      <span class="brand-orb"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
+      <span>TechFix</span>
+    </a>
+    <a href="{% url 'dashboard' %}" class="sidebar-icon-btn" title="New chat" aria-label="New chat">
+      <i class="fa-regular fa-pen-to-square"></i>
+    </a>
+    <button type="button" class="sidebar-icon-btn sidebar-close" id="sidebarClose" aria-label="Close sidebar">
+      <i class="fa-solid fa-xmark"></i>
+    </button>
+  </div>
+
+  <nav class="sidebar-scroll">
+    <div class="sidebar-nav">
+      <a href="{% url 'dashboard' %}" class="sidebar-link {% if current == 'dashboard' and not request.GET.q %}active{% endif %}">
+        <i class="fa-regular fa-comment-dots"></i>
+        <span>New chat</span>
+      </a>
+      <a href="{% url 'product_list' %}" class="sidebar-link {% if current == 'product_list' or current == 'product_detail' %}active{% endif %}">
+        <i class="fa-regular fa-image"></i>
+        <span>Images</span>
+      </a>
+      <a href="{% url 'solution_list' %}" class="sidebar-link {% if current == 'solution_list' %}active{% endif %}">
+        <i class="fa-regular fa-calendar"></i>
+        <span>Scheduled</span>
+      </a>
+      <a href="{% url 'brand_list' %}" class="sidebar-link {% if current == 'brand_list' or current == 'brand_detail' %}active{% endif %}">
+        <i class="fa-solid fa-book-open"></i>
+        <span>Library</span>
+      </a>
+      <a href="{% url 'accessory_list' %}" class="sidebar-link {% if current == 'accessory_list' or current == 'accessory_detail' %}active{% endif %}">
+        <i class="fa-solid fa-puzzle-piece"></i>
+        <span>Plugins</span>
+      </a>
+      <a href="{% url 'info:info_list' %}" class="sidebar-link {% if app == 'info' %}active{% endif %}">
+        <i class="fa-solid fa-code"></i>
+        <span>Codex</span>
+      </a>
+      <a href="{% url 'dashboard' %}#techfix" class="sidebar-link {% if current == 'dashboard' and request.GET.q %}active{% endif %}">
+        <i class="fa-regular fa-compass"></i>
+        <span>Explore</span>
       </a>
     </div>
 
-    <button
-      class="navbar-toggler"
-      type="button"
-      data-bs-toggle="collapse"
-      data-bs-target="#sidebar-menu"
-      aria-controls="sidebar-menu"
-      aria-expanded="false"
-      aria-label="Toggle navigation"
-      >
-      <span class="navbar-toggler-icon"></span>
-    </button>
-
-    <div class="collapse navbar-collapse" id="sidebar-menu">
-      <ul class="navbar-nav pt-lg-2 py-lg-2">
-
-        <li class="nav-item">
-          <span class="dh-nav-section">
-            Menu
-          </span>
-        </li>
-        <li class="nav-item mb-1">
-          <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}" href="{% url 'dashboard' %}">
-            <span class="nav-link-icon d-md-none d-lg-inline-block">
-              <i class="fa fa-dashboard"></i>
-            </span>
-            <span class="nav-link-title">Dashboard</span>
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link {% if request.resolver_match.url_name == 'brand_list' or request.resolver_match.url_name == 'brand_detail' %}active{% endif %}" href="{% url 'brand_list' %}">
-            <span class="nav-link-icon d-md-none d-lg-inline-block">
-              <i class="nav-icon fas fa-folder-open"></i>
-            </span>
-            <span class="nav-link-title">Brands</span>
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link {% if request.resolver_match.url_name == 'product_list' %}active{% endif %}" href="{% url 'product_list' %}">
-            <span class="nav-link-icon d-md-none d-lg-inline-block">
-              <i class="nav-icon fas fa-laptop"></i>
-            </span>
-            <span class="nav-link-title">Products</span>
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link {% if request.resolver_match.url_name == 'accessory_list' %}active{% endif %}" href="{% url 'accessory_list' %}">
-            <span class="nav-link-icon d-md-none d-lg-inline-block">
-              <i class="nav-icon fas fa-headphones"></i>
-            </span>
-            <span class="nav-link-title">Accessories</span>
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link {% if request.resolver_match.url_name == 'solution_list' %}active{% endif %}" href="{% url 'solution_list' %}">
-            <span class="nav-link-icon d-md-none d-lg-inline-block">
-              <i class="nav-icon fas fa-screwdriver-wrench"></i>
-            </span>
-            <span class="nav-link-title">Solutions</span>
-          </a>
-        </li>
-
+    <div class="sidebar-section">
+      <div class="sidebar-label">
+        <span>Projects</span>
+        <a href="{% url 'brand_list' %}" title="Browse brand folders" aria-label="Browse brand folders">
+          <i class="fa-solid fa-plus"></i>
+        </a>
+      </div>
+      <div class="sidebar-nav">
+        <a href="{% url 'dashboard' %}#techfix" class="sidebar-link">
+          <i class="fa-regular fa-folder"></i>
+          <span>TechFix catalog</span>
+        </a>
+        <a href="{% url 'solution_list' %}" class="sidebar-link">
+          <i class="fa-solid fa-wrench"></i>
+          <span>Repair guides</span>
+        </a>
+        <a href="{% url 'info:info_list' %}" class="sidebar-link">
+          <i class="fa-regular fa-address-card"></i>
+          <span>Info records</span>
+        </a>
         {% if request.user.is_superuser %}
-        <li class="nav-item">
-          <a class="nav-link {% if request.resolver_match.app_name == 'users' %}active{% endif %}" href="{% url 'users:user_list' %}">
-            <span class="nav-link-icon d-md-none d-lg-inline-block">
-              <i class="nav-icon fas fa-users"></i>
-            </span>
-            <span class="nav-link-title">Users</span>
-          </a>
-        </li>
+        <a href="{% url 'users:user_list' %}" class="sidebar-link {% if app == 'users' %}active{% endif %}">
+          <i class="fa-solid fa-users"></i>
+          <span>Manage users</span>
+        </a>
+        <a href="/admin/" class="sidebar-link">
+          <i class="fa-solid fa-sliders"></i>
+          <span>Admin panel</span>
+        </a>
         {% endif %}
-
-        <li class="nav-item">
-          <a class="nav-link {% if request.resolver_match.app_name == 'info' %}active{% endif %}" href="{% url 'info:info_list' %}">
-            <span class="nav-link-icon d-md-none d-lg-inline-block">
-              <i class="nav-icon fas fa-address-card"></i>
-            </span>
-            <span class="nav-link-title">Info</span>
-          </a>
-        </li>
-
-        <li class="nav-item">
-          <a class="nav-link" href="{% url 'dashboard' %}#techfix">
-            <span class="nav-link-icon d-md-none d-lg-inline-block">
-              <i class="nav-icon fas fa-microchip"></i>
-            </span>
-            <span class="nav-link-title">TechFix Catalog</span>
-          </a>
-        </li>
-
-        {% if user.is_authenticated %}
-        <li class="nav-item d-lg-none">
-          <form method="post" action="{% url 'logout' %}" class="m-0">
-            {% csrf_token %}
-            <button type="submit" class="nav-link w-100 text-start bg-transparent border-0">
-              <span class="nav-link-icon d-md-none d-lg-inline-block">
-                <i class="nav-icon fas fa-sign-out-alt"></i>
-              </span>
-              <span class="nav-link-title">Logout</span>
-            </button>
-          </form>
-        </li>
-        {% endif %}
-
-        <li class="nav-item mt-auto dh-nav-sidebar-footer">
-          <div class="dh-user-card">
-            {% if request.user.is_superuser %}
-            <a href="{% url 'users:user_list' %}" class="d-flex align-items-center gap-2 text-decoration-none text-white min-w-0 w-100">
-            {% else %}
-            <span class="d-flex align-items-center gap-2 text-white min-w-0 w-100">
-            {% endif %}
-              <span class="dh-avatar">{% if user.is_authenticated %}{{ user.username|first|upper }}{% else %}?{% endif %}</span>
-              <span class="min-w-0 flex-grow-1">
-                <span class="dh-user-name">{% if user.is_authenticated %}{{ user.username }}{% else %}Guest{% endif %}</span>
-                <span class="dh-user-role">
-                  {% if user.is_superuser %}Administrator{% elif user.is_staff %}Staff{% elif user.is_authenticated %}User{% endif %}
-                </span>
-              </span>
-            {% if request.user.is_superuser %}
-            </a>
-            {% else %}
-            </span>
-            {% endif %}
-            {% if user.is_authenticated %}
-            <form method="post" action="{% url 'logout' %}" class="m-0 ms-auto">
-              {% csrf_token %}
-              <button type="submit" class="dh-user-logout bg-transparent border-0" title="Logout">
-                <i class="fas fa-sign-out-alt"></i>
-              </button>
-            </form>
-            {% endif %}
-          </div>
-        </li>
-
-      </ul>
+      </div>
     </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">
+        <span>Recents</span>
+      </div>
+      <div class="sidebar-nav">
+        <a href="{% url 'dashboard' %}" class="recent-link">Embed player layout</a>
+        <a href="{% url 'solution_list' %}?q=django" class="recent-link">Fix Django Tag Library</a>
+        <a href="{% url 'solution_list' %}?q=github" class="recent-link">Fix GitHub 404 Error</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="sidebar-user">
+      <span class="sidebar-avatar">
+        {% if user.first_name and user.last_name %}{{ user.first_name|first|upper }}{{ user.last_name|first|upper }}{% else %}{{ user.username|first|upper }}{% endif %}
+      </span>
+      <span class="sidebar-user-meta">
+        <span class="sidebar-user-name">{% if user.get_full_name %}{{ user.get_full_name }}{% else %}{{ user.username }}{% endif %}</span>
+        <span class="sidebar-user-role">{% if user.is_superuser %}Administrator{% else %}Free plan{% endif %}</span>
+      </span>
+      <form method="post" action="{% url 'logout' %}" class="m-0">
+        {% csrf_token %}
+        <button type="submit" class="sidebar-logout" title="Log out" aria-label="Log out">
+          <i class="fa-solid fa-arrow-right-from-bracket"></i>
+        </button>
+      </form>
+    </div>
+    <a href="{% url 'product_list' %}" class="claim-offer">
+      <span><i class="fa-solid fa-gift"></i> Claim offer</span>
+      <i class="fa-solid fa-chevron-right"></i>
+    </a>
   </div>
 </aside>
+{% endwith %}
