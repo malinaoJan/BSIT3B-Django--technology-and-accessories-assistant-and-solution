@@ -96,8 +96,8 @@
     </div>
   </nav>
 
+  {% if request.user.is_authenticated %}
   <div class="sidebar-footer">
-    {% if request.user.is_authenticated %}
     <div class="sidebar-user">
       <span class="sidebar-avatar">
         {% if user.first_name and user.last_name %}{{ user.first_name|first|upper }}{{ user.last_name|first|upper }}{% else %}{{ user.username|first|upper }}{% endif %}
@@ -117,19 +117,7 @@
       <span><i class="fa-solid fa-gift"></i> Claim offer</span>
       <i class="fa-solid fa-chevron-right"></i>
     </a>
-    {% else %}
-    <div class="sidebar-user">
-      <span class="sidebar-avatar">G</span>
-      <span class="sidebar-user-meta">
-        <span class="sidebar-user-name">Guest</span>
-        <span class="sidebar-user-role">Browsing TechFix</span>
-      </span>
-    </div>
-    <div class="guest-sidebar-actions">
-      <a href="{% url 'login' %}" class="btn btn-outline-primary">Sign in</a>
-      <a href="{% url 'register' %}" class="btn btn-primary">Create account</a>
-    </div>
-    {% endif %}
   </div>
+  {% endif %}
 </aside>
 {% endwith %}

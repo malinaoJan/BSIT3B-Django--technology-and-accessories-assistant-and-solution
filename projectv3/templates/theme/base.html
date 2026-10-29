@@ -22,6 +22,22 @@
       <div class="sidebar-backdrop" id="sidebarBackdrop" aria-hidden="true"></div>
 
       <div class="app-main">
+        {% if not request.user.is_authenticated %}
+        <header class="mobile-topbar guest-topbar">
+          <button type="button" class="sidebar-icon-btn" id="sidebarToggle" aria-controls="appSidebar" aria-expanded="false" aria-label="Open sidebar">
+            <i class="fa-solid fa-bars"></i>
+          </button>
+          <a class="mobile-brand" href="{% url 'dashboard' %}">
+            <span class="brand-orb" style="width:24px;height:24px;font-size:.65rem;"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
+            TechFix
+          </a>
+          <div class="guest-top-actions">
+            <span class="guest-top-label">Guest mode</span>
+            <a href="{% url 'login' %}" class="btn btn-outline-primary">Sign in</a>
+            <a href="{% url 'register' %}" class="btn btn-primary">Create account</a>
+          </div>
+        </header>
+        {% else %}
         <div class="mobile-topbar">
           <button type="button" class="sidebar-icon-btn" id="sidebarToggle" aria-controls="appSidebar" aria-expanded="false" aria-label="Open sidebar">
             <i class="fa-solid fa-bars"></i>
@@ -31,13 +47,10 @@
             TechFix
           </span>
           <span class="sidebar-avatar" aria-label="{% if request.user.is_authenticated %}{{ request.user.username }}{% else %}Guest{% endif %}">
-            {% if request.user.is_authenticated %}
             {% if request.user.get_full_name %}{{ request.user.first_name|first|upper }}{{ request.user.last_name|first|upper }}{% else %}{{ request.user.username|first|upper }}{% endif %}
-            {% else %}
-            G
-            {% endif %}
           </span>
         </div>
+        {% endif %}
 
         <main class="app-content">
           {% block content %}{% endblock %}

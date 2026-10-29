@@ -480,13 +480,6 @@ a:hover {
   font-size: 0.66rem;
 }
 
-.guest-sidebar-actions {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 8px;
-  margin-top: 8px;
-}
-
 /* Mobile sidebar */
 .mobile-topbar {
   display: none;
@@ -500,6 +493,25 @@ a:hover {
   background: rgba(255, 255, 255, 0.88);
   border-bottom: 1px solid var(--cg-border);
   backdrop-filter: blur(14px);
+}
+
+.guest-topbar {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 28px;
+}
+
+.guest-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.guest-top-label {
+  margin-right: 4px;
+  color: var(--cg-muted);
+  font-size: 0.8rem;
+  font-weight: 550;
 }
 
 .mobile-brand {
@@ -539,6 +551,10 @@ a:hover {
     display: flex;
   }
 
+  .guest-topbar {
+    padding: 10px 14px;
+  }
+
   body.sidebar-open {
     overflow: hidden;
   }
@@ -563,6 +579,31 @@ a:hover {
   .container-xl {
     padding-left: 20px;
     padding-right: 20px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .guest-topbar .sidebar-icon-btn {
+    display: none;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .guest-topbar {
+    gap: 8px;
+  }
+
+  .guest-top-actions {
+    gap: 6px;
+  }
+
+  .guest-top-label {
+    display: none;
+  }
+
+  .guest-top-actions .btn {
+    padding: 6px 9px;
+    font-size: 0.78rem;
   }
 }
 
