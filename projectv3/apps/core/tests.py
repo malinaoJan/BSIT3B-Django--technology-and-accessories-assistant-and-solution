@@ -59,9 +59,14 @@ class HomeViewTests(TestCase):
         self.assertContains(response, 'Guest mode')
         self.assertContains(response, 'Create account')
         self.assertNotContains(response, 'guest-sidebar-actions')
-        self.assertContains(response, reverse('product_list'))
-        self.assertContains(response, reverse('accessory_list'))
         self.assertNotContains(response, 'Scheduled')
+        sidebar = response.content.decode().split(
+            '<aside class="app-sidebar"', 1
+        )[1].split('</aside>', 1)[0]
+        for label in ('Products', 'Accessories', 'TechFix catalog', 'Repair guides'):
+            self.assertNotIn(label, sidebar)
+        self.assertNotIn(reverse('product_list'), sidebar)
+        self.assertNotIn(reverse('accessory_list'), sidebar)
 
     def test_logout_returns_user_to_guest_dashboard(self):
         user = get_user_model().objects.create_user(
