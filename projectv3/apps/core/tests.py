@@ -5,8 +5,9 @@ from django.contrib.auth import get_user_model
 from django.test import Client, SimpleTestCase, TestCase
 from django.urls import reverse
 
+from .assistant import build_answer
 from .gemini import _extract_text, _parse_gemini_data, enhance_answer
-from .models import Category, Product
+from .models import Accessory, Category, Product, Solution
 from .views import CHAT_SESSION_KEY, _context_query
 
 
@@ -407,6 +408,132 @@ class ChatEndpointTests(TestCase):
         self.assertIn('RAM: 8GB', html)
         self.assertIn('View product', html)
         self.assertIn('data-chat-prompt="How do I reset it?"', html)
+
+
+class StrictAssistantResultsTests(TestCase):
+    def setUp(self):
+        self.category = Category.objects.create(name='Smartphones')
+        self.iphone_17 = Product.objects.create(
+            name='iPhone 17',
+            category=self.category,
+            brand='Apple',
+            description='Compact iPhone 17.',
+            price='799.00',
+            stock_quantity=4,
+        )
+        self.iphone_pro_max = Product.objects.create(
+            name='iPhone 17 Pro Max',
+            category=self.category,
+            brand='Apple',
+            description='Large iPhone 17 Pro Max.',
+            price='1199.00',
+            stock_quantity=2,
+        )
+        self.samsung_ultra = Product.objects.create(
+            name='Samsung Galaxy S25 Ultra',
+            category=self.category,
+            brand='Samsung',
+            description='Samsung flagship.',
+            price='1299.00',
+            stock_quantity=3,
+        )
+        self.samsung_fe = Product.objects.create(
+            name='Samsung Galaxy S25 FE',
+            category=self.category,
+            brand='Samsung',
+            description='Samsung Fan Edition.',
+            price='649.00',
+            stock_quantity=6,
+        )
+        self.case = Accessory.objects.create(
+            name='iPhone Silicone Case with MagSafe',
+            category=Category.objects.create(name='Cases'),
+            brand='Apple',
+            description='Protective case.',
+            compatibility_notes='Designed for iPhone.',
+            price='49.00',
+            stock_quantity=8,
+        )
+        self.solution = Solution.objects.create(
+            title='iPhone 17 Pro Max battery drains overnight',
+            category=Category.objects.create(name='Battery'),
+            related_product=self.iphone_pro_max,
+            problem_description='Battery drops while idle overnight.',
+            steps='1. Check battery usage.\n2. Update iOS.\n3. Contact support.',
+            difficulty_level='Easy',
+        )
+        self.slow_solution = Solution.objects.create(
+            title='iPhone 17 running slow after update',
+            category=Category.objects.create(name='Performance'),
+            related_product=self.iphone_17,
+            problem_description='Phone feels laggy after an update.',
+            steps='1. Restart.\n2. Free up storage.',
+            difficulty_level='Easy',
+        )
+
+    def test_iphone_query_returns_only_iphone_products(self):
+        answer = build_answer('iphone')
+
+        self.assertEqual(answer['kind'], 'results')
+        names = {item.name for item in answer['matches']['products']}
+        self.assertEqual(names, {'iPhone 17', 'iPhone 17 Pro Max'})
+        self.assertNotIn('Samsung Galaxy S25 Ultra', names)
+        self.assertNotIn('Samsung Galaxy S25 FE', names)
+
+    def test_exact_model_query_returns_exact_product(self):
+        answer = build_answer('iphone 17 pro max')
+
+        self.assertEqual(answer['kind'], 'product')
+        self.assertEqual(answer['title'], 'iPhone 17 Pro Max')
+
+    def test_samsung_model_query_does_not_pick_fe_variant(self):
+        answer = build_answer('samsung galaxy s25 ultra')
+
+        self.assertEqual(answer['kind'], 'product')
+        self.assertEqual(answer['title'], 'Samsung Galaxy S25 Ultra')
+
+    def test_iphone_issue_query_does_not_return_other_devices(self):
+        answer = build_answer('iphone battery drains')
+
+        self.assertEqual(answer['kind'], 'solution')
+        self.assertEqual(answer['product'].brand, 'Apple')
+        self.assertIn('iPhone', answer['title'])
+        self.assertEqual(answer['suggestions'], [])
+
+    def test_iphone_accessory_query_returns_only_iphone_cases(self):
+        answer = build_answer('iphone case')
+
+        self.assertEqual(answer['kind'], 'results')
+        names = [item.name for item in answer['matches']['accessories']]
+        self.assertEqual(names, ['iPhone Silicone Case with MagSafe'])
+        self.assertEqual(answer['matches']['products'], [])
+
+    def test_missing_model_gets_no_match_instead_of_other_devices(self):
+        answer = build_answer('iphone 18')
+
+        self.assertEqual(answer['badge'], 'No exact match')
+        self.assertEqual(answer['matches']['products'], [])
+        self.assertEqual(answer['steps'], [])
+
+    @patch('apps.core.views.enhance_answer')
+    def test_chat_strict_results_skip_ai_and_render_matches(self, mocked_enhance):
+        user = get_user_model().objects.create_user(
+            username='strict-chat', password='secret1234'
+        )
+        self.client.force_login(user)
+
+        response = self.client.post(
+            reverse('assistant_chat'),
+            data=json.dumps({'message': 'iphone'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        mocked_enhance.assert_not_called()
+        html = response.json()['html']
+        self.assertIn('iPhone 17', html)
+        self.assertIn('iPhone 17 Pro Max', html)
+        self.assertNotIn('Samsung Galaxy S25', html)
 
 
 class ContextQueryTests(SimpleTestCase):

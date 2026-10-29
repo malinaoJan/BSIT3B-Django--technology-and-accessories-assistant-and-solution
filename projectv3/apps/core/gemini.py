@@ -24,8 +24,10 @@ _SYSTEM_PROMPT = (
     'specifications, compatibility and prices. Never invent or guess '
     'specifications, model-specific compatibility, part numbers, stock or prices. '
     'If the catalog does not contain a detail, say you do not have confirmed '
-    'information and give safe general guidance instead. Do not claim to be '
-    'ChatGPT or Gemini. Return valid JSON only.'
+    'information and give safe general guidance instead. Answer only about the '
+    'exact device, model or item named in the user question. Do not list or '
+    'discuss other devices or models unless the user explicitly asks for '
+    'alternatives. Do not claim to be ChatGPT or Gemini. Return valid JSON only.'
 )
 
 _RESPONSE_SCHEMA = {
@@ -108,9 +110,11 @@ def _build_prompt(question, sources, history_included=False):
             lines.append(_source_block(source, index))
             lines.append('')
         lines.append(
-            'Use the best matching catalog entry as the primary source. If the '
-            'question is about a different device, adapt the steps carefully and '
-            'do not copy unrelated model details.'
+            'Use the best matching catalog entry as the primary source. Answer '
+            'only about the exact device, model or item named in the user '
+            'question. Do not list, compare or mention other devices or models '
+            'unless the user explicitly asks for alternatives. Do not copy '
+            'unrelated model details.'
         )
     else:
         lines.append(

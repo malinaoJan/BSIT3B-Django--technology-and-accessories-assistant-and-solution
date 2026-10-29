@@ -286,8 +286,38 @@ def _serialize_accessory(accessory):
     }
 
 
-def _serialize_answer(answer):
+def _serialize_solution_match(solution):
     return {
+        'id': solution.pk,
+        'title': solution.title,
+        'category': solution.category.name if solution.category else '',
+        'difficulty': solution.difficulty_level,
+    }
+
+
+def _serialize_matches(matches):
+    matches = matches if isinstance(matches, dict) else {}
+    return {
+        'products': [
+            _serialize_product(item)
+            for item in (matches.get('products') or [])[:60]
+            if item is not None
+        ],
+        'accessories': [
+            _serialize_accessory(item)
+            for item in (matches.get('accessories') or [])[:30]
+            if item is not None
+        ],
+        'solutions': [
+            _serialize_solution_match(item)
+            for item in (matches.get('solutions') or [])[:30]
+            if item is not None
+        ],
+    }
+
+
+def _serialize_answer(answer):
+    serialized = {
         'kind': str(answer.get('kind') or ''),
         'badge': str(answer.get('badge') or 'Answer'),
         'title': str(answer.get('title') or ''),
@@ -307,6 +337,9 @@ def _serialize_answer(answer):
         'ai': bool(answer.get('ai')),
         'notice': str(answer.get('notice') or ''),
     }
+    if serialized['kind'] == 'results':
+        serialized['matches'] = _serialize_matches(answer.get('matches'))
+    return serialized
 
 
 def _get_chat_history(request):
@@ -363,6 +396,8 @@ def _create_chat_answer(message, history):
     except Exception:
         logger.exception('Local assistant answer failed')
         local_answer = None
+    if local_answer and local_answer.get('strict'):
+        return local_answer
     return enhance_answer(message, local_answer, history=history)
 
 

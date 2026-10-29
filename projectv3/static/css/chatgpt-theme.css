@@ -1304,6 +1304,114 @@ body.chat-active .explore-catalog {
   border-color: var(--cg-border-strong);
 }
 
+.assistant-results {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--cg-border);
+}
+
+.assistant-result-group + .assistant-result-group {
+  margin-top: 14px;
+}
+
+.assistant-result-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 7px;
+  color: var(--cg-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.assistant-result-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-width: thin;
+}
+
+.assistant-result {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid var(--cg-border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--cg-text);
+  text-decoration: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.assistant-result:hover,
+.assistant-result:focus-visible {
+  background: var(--cg-surface-2);
+  border-color: var(--cg-border-strong);
+  outline: none;
+}
+
+.assistant-result-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--cg-surface-2);
+  color: var(--cg-text);
+  font-size: 0.78rem;
+}
+
+.assistant-result-copy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.assistant-result-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.assistant-result-meta {
+  color: var(--cg-muted);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.assistant-result > .fa-chevron-right {
+  flex: 0 0 auto;
+  color: var(--cg-muted);
+  font-size: 0.65rem;
+}
+
+@media (max-width: 479.98px) {
+  .assistant-result-list {
+    max-height: 260px;
+  }
+
+  .assistant-result {
+    padding: 8px;
+  }
+
+  .assistant-result-icon {
+    flex-basis: 27px;
+    width: 27px;
+    height: 27px;
+  }
+}
+
 .chat-thread {
   display: flex;
   flex-direction: column;

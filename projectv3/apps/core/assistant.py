@@ -63,6 +63,23 @@ _GENERIC_TOKENS = frozenset({
     'nfc', 'gps', 'anc', 'rgb',
 })
 
+_MODEL_WORDS = frozenset({
+    'pro', 'max', 'plus', 'ultra', 'mini', 'lite', 'air', 'fold', 'flip',
+    'fe', 'se', 'xl', 'note', 'edge', 'neo', 'prime', 'titan', 'gt',
+    '2nd', '3rd', '4th', '5th', '10th', '11th', '12th',
+})
+
+_ACCESSORY_QUERY_WORDS = frozenset({
+    'case', 'cover', 'sleeve', 'bag', 'backpack', 'charger', 'adapter',
+    'adaptor', 'cable', 'earbud', 'earphone', 'headphone', 'headset',
+    'speaker', 'powerbank', 'battery', 'hub', 'dock', 'stand', 'keyboard',
+    'mouse', 'mousemat', 'pen', 'stylus', 'strap', 'protector', 'glass',
+    'ink', 'paper', 'toner', 'cartridge', 'storage', 'ssd', 'card', 'reader',
+    'remote', 'controller', 'gamepad', 'trigger', 'cooler', 'light',
+    'webcam', 'tripod', 'mount', 'lens', 'filter', 'mic', 'microphone',
+    'label', 'ribbon', 'drum', 'fuser', 'lamp', 'bulb',
+})
+
 _DEVICE_TOKENS = frozenset({
     'phon', 'laptop', 'tablet', 'tv', 'camera', 'printer', 'router',
     'speaker', 'headphon', 'headset', 'earbud', 'earphon', 'monitor',
@@ -104,6 +121,7 @@ _TOPIC_PATTERNS = (
     ('storage', (r'\bstorage\b', r'memory card', r'\bsd card\b', r'microsd', r'\bdisk\b', r'\bspace\b', r'\bfull\b')),
     ('performance', (r'\bslow\b', r'\blag', r'freez', r'\bcrash', r'\bhang', r'\bstuck\b', r'unresponsive', r'\brestart', r'\breboot')),
     ('network', (r'wi-?fi', r'\binternet\b', r'\bnetwork\b', r'\brouter\b', r'offline', r'\bsignal\b', r'ethernet')),
+    ('battery', (r'\bbattery\b(?![^.!?]*\bcharg)', r'\bdrain', r'\bhealth\b')),
     ('charging', (r'\bcharg', r'\bbattery\b', r'power adapter', r'\badapter\b')),
     ('power', (r'\bpower\b', r'turn(?:s|ing)? on', r'\bboot', r'\bstart', r'\bdead\b', r'black screen')),
 )
@@ -116,6 +134,7 @@ _TOPIC_LABELS = {
     'storage': 'storage',
     'performance': 'performance',
     'network': 'network',
+    'battery': 'battery drain',
     'charging': 'charging',
     'power': 'power',
     'default': 'troubleshooting',
@@ -128,6 +147,13 @@ _TOPIC_STEPS = {
         'Hold the power button for 10 to 15 seconds to force a restart.',
         'Check the manufacturer support page for a firmware update or reset procedure.',
         'If the device stays dead, have the battery or power board inspected by a technician.',
+    ),
+    'battery': (
+        'Check battery usage and limit apps running in the background.',
+        'Lower screen brightness and turn off always-on or high-refresh features.',
+        'Install the latest software update and restart the device.',
+        'Check battery health and replace the battery if it is degraded.',
+        'If the drain continues, have the battery and charging board inspected.',
     ),
     'charging': (
         'Use the original charger and cable, and try a different wall outlet.',
@@ -261,6 +287,82 @@ def _token_list(text):
             continue
         tokens.append(token)
     return tokens
+
+
+def _strict_tokens(text, drop_generic=True):
+    """Raw identity tokens that keep model qualifiers such as Pro and Max."""
+    text = re.sub(r"['`]", '', _normalize(text)).replace('+', ' plus ')
+    tokens = set()
+    for raw in TOKEN_RE.findall(text):
+        raw = raw.replace('-', '')
+        if len(raw) < 2:
+            continue
+        stem = _stem(raw)
+        if raw in _STOPWORDS and raw not in _MODEL_WORDS:
+            continue
+        if stem in _STOPWORDS and raw not in _MODEL_WORDS:
+            continue
+        if drop_generic and (raw in _GENERIC_TOKENS or stem in _GENERIC_TOKENS):
+            continue
+        tokens.add(raw)
+    return tokens
+
+
+def _brand_words(products, accessories):
+    words = set()
+    for item in list(products) + list(accessories):
+        if item.brand:
+            words |= set(TOKEN_RE.findall(_normalize(item.brand)))
+    return words
+
+
+def _query_identity_tokens(query, brand_words, drop_generic=True):
+    tokens = _strict_tokens(query, drop_generic=drop_generic) - brand_words
+    return {
+        token for token in tokens
+        if token not in _ISSUE_SIGNAL_TOKENS
+        and _stem(token) not in _ISSUE_SIGNAL_TOKENS
+    }
+
+
+def _item_identity_tokens(name, brand, brand_words, drop_generic=True):
+    return _strict_tokens(name, drop_generic=drop_generic) - brand_words
+
+
+def _product_identity_tokens(product, brand_words, drop_generic=True):
+    if product is None:
+        return set()
+    return _item_identity_tokens(
+        product.name, product.brand, brand_words, drop_generic=drop_generic
+    )
+
+
+def _accessory_identity_tokens(accessory, brand_words):
+    if accessory is None:
+        return set()
+    tokens = _item_identity_tokens(
+        accessory.name, accessory.brand, brand_words, drop_generic=False
+    )
+    if accessory.compatibility_notes:
+        tokens |= _strict_tokens(
+            accessory.compatibility_notes, drop_generic=False
+        ) - brand_words
+    return tokens
+
+
+def _solution_identity_tokens(solution, brand_words):
+    return _product_identity_tokens(solution.related_product, brand_words)
+
+
+def _identity_match(item_tokens, identity_terms):
+    return bool(identity_terms) and identity_terms <= item_tokens
+
+
+def _has_accessory_intent(query):
+    for token in _strict_tokens(query, drop_generic=False):
+        if token in _ACCESSORY_QUERY_WORDS or _stem(token) in _ACCESSORY_QUERY_WORDS:
+            return True
+    return False
 
 
 def _expansion_tokens(query):
@@ -431,7 +533,10 @@ def _device_match(item, device_tokens):
     return bool(_tokens(getattr(item, 'kind', '')) & device_tokens)
 
 
-def _suggestions(solution_ranked, brand=None, device_tokens=None):
+def _suggestions(solution_ranked, brand=None, device_tokens=None,
+                 identity_terms=None, brand_words=None):
+    if not identity_terms and not brand and not device_tokens:
+        return []
     suggestions = []
     for _, _, solution in solution_ranked:
         product = solution.related_product
@@ -439,17 +544,15 @@ def _suggestions(solution_ranked, brand=None, device_tokens=None):
             continue
         if device_tokens and not _device_match(product, device_tokens):
             continue
+        if identity_terms and not _identity_match(
+            _product_identity_tokens(product, brand_words or set()), identity_terms
+        ):
+            continue
         text = _clean_title(solution.title)
         if text and text not in suggestions:
             suggestions.append(text)
         if len(suggestions) == 3:
             break
-    if not suggestions:
-        suggestions = [
-            'TV apps freeze or crash',
-            'Phone battery drains fast',
-            'Bluetooth speaker not pairing',
-        ]
     return suggestions[:3]
 
 
@@ -544,41 +647,14 @@ def _accessory_answer(accessory, query, intent, topic):
     }
 
 
-def _brand_answer(brand, products, accessories, solutions, solution_ranked, device_tokens):
-    product_count = sum(
-        1 for item in products
-        if (item.brand or '').lower() == brand.lower()
-        and _device_match(item, device_tokens)
-    )
-    accessory_count = sum(
-        1 for item in accessories
-        if (item.brand or '').lower() == brand.lower()
-        and _device_match(item, device_tokens)
-    )
-    solution_count = sum(
-        1 for item in solutions
-        if item.related_product
-        and (item.related_product.brand or '').lower() == brand.lower()
-        and _device_match(item.related_product, device_tokens)
-    )
-    suggestions = _suggestions(
-        solution_ranked, brand=brand, device_tokens=device_tokens
-    )
-    example = suggestions[0] if suggestions else 'add the device model and the symptom'
-    summary = (
-        'I found %s, %s and %s for %s. Add the model and the symptom, for example '
-        '"%s", and I will give you the exact fix and steps.'
-    ) % (
-        _plural(product_count, 'product'),
-        _plural(accessory_count, 'accessory', 'accessories'),
-        _plural(solution_count, 'repair guide'),
-        brand,
-        example,
-    )
+def _results_answer(title, summary, products=(), accessories=(), solutions=()):
+    products = list(products)
+    accessories = list(accessories)
+    solutions = list(solutions)
     return {
-        'kind': 'clarify',
-        'badge': 'Choose a device',
-        'title': brand,
+        'kind': 'results',
+        'badge': 'Catalog results',
+        'title': title,
         'summary': summary,
         'first_step': '',
         'steps': [],
@@ -589,12 +665,65 @@ def _brand_answer(brand, products, accessories, solutions, solution_ranked, devi
         'accessory': None,
         'video_url': '',
         'safety': '',
-        'suggestions': suggestions,
+        'suggestions': [],
         'ai': False,
+        'strict': True,
+        'matches': {
+            'products': products[:60],
+            'accessories': accessories[:30],
+            'solutions': solutions[:30],
+        },
     }
 
 
-def _fallback_answer(query, topic, solution_ranked, brand_hits, device_tokens):
+def _no_match_answer(query):
+    return {
+        'kind': 'fallback',
+        'badge': 'No exact match',
+        'title': '',
+        'summary': (
+            'I could not find an exact TechFix catalog match for "%s". '
+            'Try the full brand and model name, for example "iPhone 17 Pro Max".'
+        ) % query,
+        'first_step': '',
+        'steps': [],
+        'steps_title': '',
+        'difficulty': '',
+        'category': '',
+        'product': None,
+        'accessory': None,
+        'video_url': '',
+        'safety': '',
+        'suggestions': [],
+        'ai': False,
+        'strict': True,
+        'matches': {'products': [], 'accessories': [], 'solutions': []},
+    }
+
+
+def _brand_answer(brand, products, accessories):
+    brand_products = [
+        item for item in products
+        if (item.brand or '').lower() == brand.lower()
+    ]
+    brand_accessories = [
+        item for item in accessories
+        if (item.brand or '').lower() == brand.lower()
+    ]
+    summary = 'I found %s and %s for %s.' % (
+        _plural(len(brand_products), 'product'),
+        _plural(len(brand_accessories), 'accessory', 'accessories'),
+        brand,
+    )
+    return _results_answer(
+        brand, summary,
+        products=brand_products,
+        accessories=brand_accessories,
+    )
+
+
+def _fallback_answer(query, topic, solution_ranked, brand_hits, device_tokens,
+                     identity_terms=None, brand_words=None):
     label = _TOPIC_LABELS.get(topic, _TOPIC_LABELS['default'])
     brand = brand_hits[0] if brand_hits else None
     steps = list(_TOPIC_STEPS.get(topic, _TOPIC_STEPS['default']))
@@ -618,13 +747,15 @@ def _fallback_answer(query, topic, solution_ranked, brand_hits, device_tokens):
         'video_url': '',
         'safety': '',
         'suggestions': _suggestions(
-            solution_ranked, brand=brand, device_tokens=device_tokens
+            solution_ranked, brand=brand, device_tokens=device_tokens,
+            identity_terms=identity_terms, brand_words=brand_words,
         ),
         'ai': False,
     }
 
 
-def _clarify_answer(solution_ranked, device_tokens):
+def _clarify_answer(solution_ranked, device_tokens, identity_terms=None,
+                    brand_words=None):
     return {
         'kind': 'clarify',
         'badge': 'Tell me more',
@@ -644,16 +775,29 @@ def _clarify_answer(solution_ranked, device_tokens):
         'video_url': '',
         'safety': '',
         'suggestions': _suggestions(
-            solution_ranked, device_tokens=device_tokens
+            solution_ranked, device_tokens=device_tokens,
+            identity_terms=identity_terms, brand_words=brand_words,
         ),
         'ai': False,
     }
 
 
-def _sources(solution_ranked, product_ranked, accessory_ranked, limit=5):
+def _sources(solution_ranked, product_ranked, accessory_ranked, limit=5,
+             identity_terms=None, brand_words=None, exact_identity=False):
+    def identity_ok(tokens):
+        if not identity_terms:
+            return True
+        if exact_identity:
+            return tokens == identity_terms
+        return _identity_match(tokens, identity_terms)
+
     sources = []
     for score, _, solution in solution_ranked:
         if score < 3 or len(sources) >= limit:
+            continue
+        if not identity_ok(
+            _solution_identity_tokens(solution, brand_words or set())
+        ):
             continue
         product = solution.related_product
         sources.append({
@@ -668,6 +812,10 @@ def _sources(solution_ranked, product_ranked, accessory_ranked, limit=5):
     for score, _, product in product_ranked:
         if score < 5 or len(sources) >= limit:
             continue
+        if not identity_ok(
+            _product_identity_tokens(product, brand_words or set())
+        ):
+            continue
         sources.append({
             'type': 'product',
             'name': product.name,
@@ -680,6 +828,10 @@ def _sources(solution_ranked, product_ranked, accessory_ranked, limit=5):
         })
     for score, _, accessory in accessory_ranked:
         if score < 5 or len(sources) >= limit:
+            continue
+        if not identity_ok(
+            _accessory_identity_tokens(accessory, brand_words or set())
+        ):
             continue
         sources.append({
             'type': 'accessory',
@@ -720,6 +872,12 @@ def build_answer(query):
         if item.brand:
             for token in _tokens(item.brand):
                 brand_tokens.setdefault(token, item.brand)
+
+    brand_words = _brand_words(products, accessories)
+    query_identity = _query_identity_tokens(query, brand_words)
+    accessory_identity = _query_identity_tokens(
+        query, brand_words, drop_generic=False
+    )
 
     identity_tokens = set()
     for item in products:
@@ -771,15 +929,109 @@ def build_answer(query):
         reverse=True,
     )
 
-    best_solution = solution_ranked[0] if solution_ranked else None
+    strict_product_ranked = [
+        item for item in product_ranked
+        if _identity_match(
+            _product_identity_tokens(item[2], brand_words), query_identity
+        )
+    ]
+    strict_accessory_ranked = [
+        item for item in accessory_ranked
+        if _identity_match(
+            _accessory_identity_tokens(item[2], brand_words), accessory_identity
+        )
+    ]
+    strict_solution_ranked = [
+        item for item in solution_ranked
+        if _identity_match(
+            _solution_identity_tokens(item[2], brand_words), query_identity
+        )
+    ]
+
+    if not issue_signal and query_identity:
+        if _has_accessory_intent(query):
+            if strict_accessory_ranked:
+                found = [item for _, _, item in strict_accessory_ranked]
+                answer = _results_answer(
+                    query,
+                    'I found %s matching "%s" in the TechFix catalog.' % (
+                        _plural(len(found), 'accessory', 'accessories'), query,
+                    ),
+                    accessories=found,
+                )
+            else:
+                answer = _no_match_answer(query)
+            answer['sources'] = _sources(
+                solution_ranked, product_ranked, accessory_ranked,
+                identity_terms=accessory_identity, brand_words=brand_words,
+            )
+            return answer
+
+        if strict_product_ranked:
+            found = [item for _, _, item in strict_product_ranked]
+            exact = [
+                item for item in found
+                if _product_identity_tokens(item, brand_words) == query_identity
+            ]
+            if len(exact) == 1 or len(found) == 1:
+                selected = exact[0] if len(exact) == 1 else found[0]
+                answer = _product_answer(selected, query, intent, topic)
+                answer['sources'] = _sources(
+                    solution_ranked, product_ranked, accessory_ranked,
+                    identity_terms=_product_identity_tokens(
+                        selected, brand_words
+                    ),
+                    brand_words=brand_words,
+                    exact_identity=True,
+                )
+            else:
+                answer = _results_answer(
+                    query,
+                    'I found %s matching "%s" in the TechFix catalog.' % (
+                        _plural(len(found), 'product'), query,
+                    ),
+                    products=found,
+                )
+                answer['sources'] = _sources(
+                    solution_ranked, product_ranked, accessory_ranked,
+                    identity_terms=query_identity, brand_words=brand_words,
+                )
+            return answer
+
+        if strict_accessory_ranked:
+            found = [item for _, _, item in strict_accessory_ranked]
+            answer = _results_answer(
+                query,
+                'I found %s matching "%s" in the TechFix catalog.' % (
+                    _plural(len(found), 'accessory', 'accessories'), query,
+                ),
+                accessories=found,
+            )
+            answer['sources'] = _sources(
+                solution_ranked, product_ranked, accessory_ranked,
+                identity_terms=accessory_identity, brand_words=brand_words,
+            )
+            return answer
+
+        answer = _no_match_answer(query)
+        answer['sources'] = []
+        return answer
+
+    solution_pool = strict_solution_ranked if query_identity else solution_ranked
+    product_pool = strict_product_ranked if query_identity else product_ranked
+    accessory_pool = (
+        strict_accessory_ranked if query_identity else accessory_ranked
+    )
+
+    best_solution = solution_pool[0] if solution_pool else None
     issue_terms = query_tokens & _ISSUE_SIGNAL_TOKENS
     if issue_terms:
         best_solution = next(
-            (item for item in solution_ranked if item[1] & issue_terms),
-            best_solution,
+            (item for item in solution_pool if item[1] & issue_terms),
+            None,
         )
-    best_product = product_ranked[0] if product_ranked else None
-    best_accessory = accessory_ranked[0] if accessory_ranked else None
+    best_product = product_pool[0] if product_pool else None
+    best_accessory = accessory_pool[0] if accessory_pool else None
 
     solution_ready = bool(
         best_solution
@@ -801,64 +1053,51 @@ def build_answer(query):
         and _is_specific(best_accessory[1], brand_tokens)
     )
 
+    answer_intent = (
+        'troubleshoot' if issue_signal and intent != 'lookup' else intent
+    )
+
     if intent == 'lookup' and product_ready:
-        answer = _product_answer(best_product[2], query, intent, topic)
+        answer = _product_answer(best_product[2], query, answer_intent, topic)
     elif solution_ready and (intent == 'troubleshoot' or issue_signal):
         answer = _solution_answer(best_solution[2])
     elif product_ready:
-        answer = _product_answer(best_product[2], query, intent, topic)
+        answer = _product_answer(best_product[2], query, answer_intent, topic)
     elif accessory_ready:
-        answer = _accessory_answer(best_accessory[2], query, intent, topic)
-    elif brand_hits:
-        answer = _brand_answer(
-            brand_hits[0], products, accessories, solutions, solution_ranked,
-            device_tokens,
+        answer = _accessory_answer(
+            best_accessory[2], query, answer_intent, topic
         )
+    elif brand_hits:
+        answer = _brand_answer(brand_hits[0], products, accessories)
     elif issue_signal:
         answer = _fallback_answer(
-            query, topic, solution_ranked, brand_hits, device_tokens
+            query, topic, solution_ranked, brand_hits, device_tokens,
+            identity_terms=query_identity, brand_words=brand_words,
         )
     else:
-        answer = _clarify_answer(solution_ranked, device_tokens)
+        answer = _clarify_answer(
+            solution_ranked, device_tokens,
+            identity_terms=query_identity, brand_words=brand_words,
+        )
 
-    if answer['kind'] == 'clarify' and brand_hits:
-        brand = brand_hits[0].lower()
+    if answer.get('kind') != 'results':
         answer['matches'] = {
             'products': [
-                item for item in products
-                if (item.brand or '').lower() == brand
-                and _device_match(item, device_tokens)
-            ][:60],
-            'accessories': [
-                item for item in accessories
-                if (item.brand or '').lower() == brand
-                and _device_match(item, device_tokens)
-            ][:60],
-            'solutions': [
-                item for item in solutions
-                if item.related_product
-                and (item.related_product.brand or '').lower() == brand
-                and _device_match(item.related_product, device_tokens)
-            ][:60],
-        }
-    else:
-        answer['matches'] = {
-            'products': [
-                item for score, matched, item in product_ranked
+                item for score, matched, item in product_pool
                 if score >= 6
                 and _is_specific(matched, brand_tokens)
                 and _identity_ok(matched, identity_terms, identity_mode)
                 and _device_match(item, device_tokens)
             ][:60],
             'accessories': [
-                item for score, matched, item in accessory_ranked
+                item for score, matched, item in accessory_pool
                 if score >= 6
                 and _is_specific(matched, brand_tokens)
                 and _identity_ok(matched, identity_terms, identity_mode)
                 and _device_match(item, device_tokens)
             ][:60],
             'solutions': [
-                item for score, matched, item in solution_ranked
+                item for score, matched, item in solution_pool
                 if score >= 5
                 and _is_specific(matched, brand_tokens)
                 and _identity_ok(matched, identity_terms, identity_mode)
@@ -866,7 +1105,10 @@ def build_answer(query):
             ][:60],
         }
 
-    answer['sources'] = _sources(solution_ranked, product_ranked, accessory_ranked)
+    answer['sources'] = _sources(
+        solution_pool, product_pool, accessory_pool,
+        identity_terms=query_identity, brand_words=brand_words,
+    )
     return answer
 
 

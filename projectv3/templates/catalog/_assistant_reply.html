@@ -22,6 +22,73 @@
 
     <p class="assistant-text">{{ answer.summary }}</p>
 
+    {% if answer.kind == 'results' and answer.matches %}
+    <div class="assistant-results">
+      {% if answer.matches.products %}
+      <div class="assistant-result-group">
+        <div class="assistant-result-head">
+          <span>Products</span>
+          <span>{{ answer.matches.products|length }}</span>
+        </div>
+        <div class="assistant-result-list">
+          {% for item in answer.matches.products %}
+          <a class="assistant-result" href="{% url 'product_detail' item.id %}">
+            <span class="assistant-result-icon"><i class="fa-solid fa-box-open"></i></span>
+            <span class="assistant-result-copy">
+              <span class="assistant-result-name">{{ item.name }}</span>
+              <span class="assistant-result-meta">{{ item.brand }}{% if item.category %} · {{ item.category }}{% endif %}{% if item.price %} · ${{ item.price|floatformat:2 }}{% endif %}</span>
+            </span>
+            <i class="fa-solid fa-chevron-right"></i>
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      {% if answer.matches.accessories %}
+      <div class="assistant-result-group">
+        <div class="assistant-result-head">
+          <span>Accessories</span>
+          <span>{{ answer.matches.accessories|length }}</span>
+        </div>
+        <div class="assistant-result-list">
+          {% for item in answer.matches.accessories %}
+          <a class="assistant-result" href="{% url 'accessory_detail' item.id %}">
+            <span class="assistant-result-icon"><i class="fa-solid fa-plug"></i></span>
+            <span class="assistant-result-copy">
+              <span class="assistant-result-name">{{ item.name }}</span>
+              <span class="assistant-result-meta">{{ item.brand }}{% if item.category %} · {{ item.category }}{% endif %}{% if item.price %} · ${{ item.price|floatformat:2 }}{% endif %}</span>
+            </span>
+            <i class="fa-solid fa-chevron-right"></i>
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      {% if answer.matches.solutions %}
+      <div class="assistant-result-group">
+        <div class="assistant-result-head">
+          <span>Repair guides</span>
+          <span>{{ answer.matches.solutions|length }}</span>
+        </div>
+        <div class="assistant-result-list">
+          {% for item in answer.matches.solutions %}
+          <a class="assistant-result" href="{% url 'solution_list' %}?q={{ item.title|urlencode }}">
+            <span class="assistant-result-icon"><i class="fa-solid fa-screwdriver-wrench"></i></span>
+            <span class="assistant-result-copy">
+              <span class="assistant-result-name">{{ item.title }}</span>
+              <span class="assistant-result-meta">{{ item.category }}{% if item.difficulty %} · {{ item.difficulty }}{% endif %}</span>
+            </span>
+            <i class="fa-solid fa-chevron-right"></i>
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
     {% if answer.first_step %}
     <p class="assistant-text"><strong>Recommended fix:</strong> {{ answer.first_step }}</p>
     {% endif %}
