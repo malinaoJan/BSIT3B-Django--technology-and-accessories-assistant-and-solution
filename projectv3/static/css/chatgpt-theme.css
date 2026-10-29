@@ -703,14 +703,14 @@ a:hover {
   flex-direction: column;
   align-items: center;
   width: 100%;
-  max-width: 840px;
+  max-width: 1040px;
   margin: 0 auto;
-  padding: clamp(38px, 8vh, 92px) 24px 0;
+  padding: clamp(58px, 10vh, 112px) 24px 0;
 }
 
 .chat-greeting {
   margin: 0 0 30px;
-  font-size: clamp(1.75rem, 4vw, 2.45rem);
+  font-size: 25px;
   font-weight: 500;
   letter-spacing: -0.035em;
   color: var(--cg-text);
@@ -719,7 +719,7 @@ a:hover {
 
 .chat-composer {
   width: 100%;
-  padding: 12px 13px 10px 16px;
+  padding: 18px 18px 16px;
   background: var(--cg-surface);
   border: 1px solid var(--cg-border-strong);
   border-radius: 28px;
@@ -740,7 +740,7 @@ body.chat-active .chat-composer {
   right: 0;
   bottom: 24px;
   z-index: 50;
-  width: min(780px, calc(100% - var(--cg-sidebar-width) - 48px));
+  width: min(960px, calc(100% - var(--cg-sidebar-width) - 48px));
   margin: 0 auto;
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05),
     0 24px 60px -28px rgba(15, 23, 42, 0.38);
@@ -768,7 +768,7 @@ body.chat-active .explore-catalog {
     right: 12px;
     bottom: calc(12px + env(safe-area-inset-bottom, 0px));
     width: auto;
-    max-width: 780px;
+    max-width: 960px;
     margin: 0 auto;
   }
 
@@ -1017,7 +1017,7 @@ body.chat-active .explore-catalog {
 
 @media (max-width: 767.98px) {
   .chat-home {
-    padding-top: 32px;
+    padding-top: 52px;
   }
 
   .gpt-promo {

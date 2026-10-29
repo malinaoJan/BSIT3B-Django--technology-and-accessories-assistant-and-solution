@@ -141,6 +141,9 @@
             <span class="assistant-badge">Connection issue</span>
           </div>
           <div class="assistant-error" data-chat-error-message></div>
+          <button type="button" class="btn btn-sm btn-outline-danger mt-2" data-chat-retry>
+            Try again
+          </button>
         </div>
       </div>
     </div>
@@ -195,11 +198,13 @@
     return node;
   }
 
-  function showError(message) {
+  function showError(message, failedPrompt) {
     var node = appendFromTemplate(errorTemplate);
     if (node) {
       var slot = node.querySelector('[data-chat-error-message]');
+      var retryButton = node.querySelector('[data-chat-retry]');
       if (slot) slot.textContent = message;
+      if (retryButton) retryButton.setAttribute('data-retry-message', failedPrompt);
     }
     scrollToBottom();
   }
@@ -219,12 +224,13 @@
     if (recommended) recommended.hidden = true;
   }
 
-  function sendMessage(message) {
+  function sendMessage(message, isRetry) {
     message = (message || '').trim();
     if (!message || sending || !chatUrl) return;
+    var messageToRetry = message;
 
     setConversation();
-    appendUserMessage(message);
+    if (!isRetry) appendUserMessage(message);
     input.value = '';
     setSending(true);
     var loading = showLoading();
@@ -279,7 +285,7 @@
         } else if (error && error.name === 'TypeError') {
           message = 'TechFix could not reach the server. Check your connection and try again.';
         }
-        showError(message);
+        showError(message, messageToRetry);
       })
       .finally(function () {
         if (timeoutId) window.clearTimeout(timeoutId);
@@ -292,6 +298,19 @@
     event.preventDefault();
     if (sending) return;
     sendMessage(input.value);
+  });
+
+  thread.addEventListener('click', function (event) {
+    var target = event.target;
+    if (!target || typeof target.closest !== 'function') return;
+    var retryButton = target.closest('[data-chat-retry]');
+    if (!retryButton) return;
+    event.preventDefault();
+    if (sending) return;
+    var errorNode = retryButton.closest('[data-chat-error]');
+    var failedMessage = retryButton.getAttribute('data-retry-message') || '';
+    removeNode(errorNode);
+    sendMessage(failedMessage, true);
   });
 
   root.querySelectorAll('.scheduled-action-use').forEach(function (button) {

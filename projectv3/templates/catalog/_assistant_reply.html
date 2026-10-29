@@ -127,7 +127,6 @@
       {% if answer.product.brand %}<span class="assistant-spec"><b>Brand</b> {{ answer.product.brand }}</span>{% endif %}
       {% if answer.product.category %}<span class="assistant-spec"><b>Category</b> {{ answer.product.category }}</span>{% endif %}
       <span class="assistant-spec"><b>Price</b> ₱{{ answer.product.price|floatformat:2|intcomma }}</span>
-      {% if answer.product.stock %}<span class="assistant-spec"><b>Stock</b> {{ answer.product.stock }} available</span>{% else %}<span class="assistant-spec"><b>Stock</b> Out of stock</span>{% endif %}
     </div>
     {% if answer.product.specs %}
     <ul class="assistant-spec-list">
@@ -142,7 +141,6 @@
       {% if answer.accessory.brand %}<span class="assistant-spec"><b>Brand</b> {{ answer.accessory.brand }}</span>{% endif %}
       {% if answer.accessory.category %}<span class="assistant-spec"><b>Category</b> {{ answer.accessory.category }}</span>{% endif %}
       <span class="assistant-spec"><b>Price</b> ₱{{ answer.accessory.price|floatformat:2|intcomma }}</span>
-      {% if answer.accessory.stock %}<span class="assistant-spec"><b>Stock</b> {{ answer.accessory.stock }} available</span>{% else %}<span class="assistant-spec"><b>Stock</b> Out of stock</span>{% endif %}
     </div>
     {% if answer.accessory.compatibility %}<p class="assistant-text"><strong>Compatibility:</strong> {{ answer.accessory.compatibility }}</p>{% endif %}
     <div class="assistant-actions"><a href="{% url 'accessory_detail' answer.accessory.id %}" class="btn btn-outline-primary">View accessory</a></div>

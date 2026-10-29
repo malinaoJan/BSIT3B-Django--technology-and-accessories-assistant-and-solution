@@ -579,14 +579,26 @@ def _library_image_search(qs, query):
     ).distinct()
 
 
+def _is_bag_image(item):
+    return item.kind == 'bag' or re.search(
+        r'\b(?:bags?|backpacks?|briefcases?|sleeves?|pouches?|totes?|duffel\s+bags?)\b',
+        item.name,
+        re.IGNORECASE,
+    ) is not None
+
+
 def _get_library_images(query=''):
     """Recent product and accessory photos for the Library images view."""
     from .models import Accessory, Product
 
-    products = Product.objects.exclude(image='').exclude(
+    products = Product.objects.exclude(name__in=_legacy_product_names()).exclude(
+        image=''
+    ).exclude(
         image__isnull=True
     ).select_related('category')
-    accessories = Accessory.objects.exclude(image='').exclude(
+    accessories = Accessory.objects.exclude(
+        name__in=_legacy_accessory_names()
+    ).exclude(image='').exclude(
         image__isnull=True
     ).select_related('category')
     if query:
@@ -594,7 +606,10 @@ def _get_library_images(query=''):
         accessories = _library_image_search(accessories, query)
 
     items = []
-    for product in products.order_by('-created_at')[:12]:
+    product_count = 0
+    for product in products.order_by('-created_at').iterator():
+        if _is_bag_image(product):
+            continue
         items.append({
             'name': product.name,
             'brand': product.brand,
@@ -602,7 +617,13 @@ def _get_library_images(query=''):
             'image_url': product.image.url,
             'url': reverse('product_detail', args=[product.pk]),
         })
-    for accessory in accessories.order_by('-created_at')[:12]:
+        product_count += 1
+        if product_count == 12:
+            break
+    accessory_count = 0
+    for accessory in accessories.order_by('-created_at').iterator():
+        if _is_bag_image(accessory):
+            continue
         items.append({
             'name': accessory.name,
             'brand': accessory.brand,
@@ -610,6 +631,9 @@ def _get_library_images(query=''):
             'image_url': accessory.image.url,
             'url': reverse('accessory_detail', args=[accessory.pk]),
         })
+        accessory_count += 1
+        if accessory_count == 12:
+            break
     return items
 
 

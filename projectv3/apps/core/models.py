@@ -1,5 +1,6 @@
 import re
 
+from django.conf import settings
 from django.db import models
 
 
@@ -282,3 +283,22 @@ class Solution(models.Model):
         if not match:
             return ''
         return 'https://i.ytimg.com/vi/%s/hqdefault.jpg' % match.group(1)
+
+
+class RecentActivity(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='recent_activities',
+    )
+    kind = models.CharField(max_length=40)
+    title = models.CharField(max_length=120)
+    url = models.CharField(max_length=2048)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'techfix_recent_activity'
+        ordering = ['-created_at', '-pk']
+
+    def __str__(self):
+        return self.title

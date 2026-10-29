@@ -2,11 +2,7 @@ RECENT_ACTIVITY_SESSION_KEY = 'techfix_recent_activity'
 MAX_RECENT_ACTIVITIES = 5
 
 
-def get_recent_activities(request):
-    if not request.user.is_authenticated:
-        return []
-
-    activities = request.session.get(RECENT_ACTIVITY_SESSION_KEY, [])
+def _validated_activities(activities):
     if not isinstance(activities, list):
         return []
 
@@ -21,6 +17,28 @@ def get_recent_activities(request):
     ][:MAX_RECENT_ACTIVITIES]
 
 
+def get_recent_activities(request):
+    if not request.user.is_authenticated:
+        return []
+
+    from .models import RecentActivity
+
+    legacy_activities = _validated_activities(
+        request.session.pop(RECENT_ACTIVITY_SESSION_KEY, [])
+    )
+    if legacy_activities and not RecentActivity.objects.filter(
+        user=request.user
+    ).exists():
+        for activity in reversed(legacy_activities):
+            RecentActivity.objects.create(user=request.user, **activity)
+
+    return list(
+        RecentActivity.objects.filter(user=request.user)
+        .order_by('-created_at', '-pk')
+        .values('kind', 'title', 'url')[:MAX_RECENT_ACTIVITIES]
+    )
+
+
 def record_recent_activity(request, kind, title, url):
     if not request.user.is_authenticated:
         return
@@ -33,18 +51,15 @@ def record_recent_activity(request, kind, title, url):
     if not activity['title'] or not url.startswith('/') or url.startswith('//'):
         return
 
-    activities = get_recent_activities(request)
-    activities = [
-        existing for existing in activities
-        if not (
-            existing.get('kind') == kind
-            and existing.get('title') == activity['title']
-            and existing.get('url') == url
-        )
-    ]
-    request.session[RECENT_ACTIVITY_SESSION_KEY] = [
-        activity, *activities
-    ][:MAX_RECENT_ACTIVITIES]
+    from .models import RecentActivity
+
+    get_recent_activities(request)
+    RecentActivity.objects.filter(user=request.user, **activity).delete()
+    RecentActivity.objects.create(user=request.user, **activity)
+    older_activity_ids = RecentActivity.objects.filter(user=request.user).order_by(
+        '-created_at', '-pk'
+    ).values_list('pk', flat=True)[MAX_RECENT_ACTIVITIES:]
+    RecentActivity.objects.filter(pk__in=older_activity_ids).delete()
 
 
 def recent_activity_context(request):

@@ -3,7 +3,7 @@
 {% block body_class %}{% if chat_messages %}chat-active{% endif %}{% endblock %}
 {% block content %}
 <div class="chat-home">
-  <h1 class="chat-greeting">Ready when you are.</h1>
+  <h1 class="chat-greeting">Let's get started.</h1>
 
   <form method="get" action="{% url 'dashboard' %}#techfix" class="chat-composer" id="techfix-search-form"
         data-chat-url="{% url 'assistant_chat' %}" data-csrf-token="{{ csrf_token }}">
@@ -31,89 +31,6 @@
     </div>
   </form>
 
-  {% if not chat_messages %}
-  <div class="gpt-promo">
-    <div class="gpt-promo-copy">
-      <span class="promo-eyebrow"><i class="fa-solid fa-wand-magic-sparkles"></i> TechFix AI with Intelligent UI</span>
-      <p class="promo-title">Answers you can see and play with.</p>
-      <p class="promo-text">Get visual and interactive answers to help you take the next step</p>
-      <a href="#techfix-search-form" class="promo-btn">Try TechFix AI <i class="fa-solid fa-arrow-right"></i></a>
-    </div>
-    <div class="pitch-board" aria-hidden="true">
-      <svg viewBox="0 0 320 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Football tactical board">
-        <defs>
-          <linearGradient id="pitchGrad" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stop-color="#3f9b68"/>
-            <stop offset="1" stop-color="#2b744a"/>
-          </linearGradient>
-          <filter id="tokenShadow" x="-60%" y="-60%" width="220%" height="220%">
-            <feDropShadow dx="0" dy="1.5" stdDeviation="1.4" flood-color="#0f172a" flood-opacity=".38"/>
-          </filter>
-          <marker id="pitchArrow" markerWidth="7" markerHeight="7" refX="5.5" refY="3.5" orient="auto">
-            <path d="M0 0 L7 3.5 L0 7 Z" fill="#fbbf24"/>
-          </marker>
-        </defs>
-
-        <rect width="320" height="200" fill="url(#pitchGrad)"/>
-        <g fill="#ffffff" opacity=".045">
-          <rect x="0" y="0" width="53" height="200"/>
-          <rect x="106" y="0" width="53" height="200"/>
-          <rect x="212" y="0" width="53" height="200"/>
-          <rect x="318" y="0" width="2" height="200"/>
-        </g>
-
-        <g fill="none" stroke="#ffffff" stroke-opacity=".58" stroke-width="1.5">
-          <rect x="14" y="14" width="292" height="172" rx="2"/>
-          <line x1="160" y1="14" x2="160" y2="186"/>
-          <circle cx="160" cy="100" r="25"/>
-          <circle cx="160" cy="100" r="2.4" fill="#ffffff" stroke="none"/>
-          <rect x="14" y="60" width="43" height="80"/>
-          <rect x="14" y="82" width="16" height="36"/>
-          <rect x="263" y="60" width="43" height="80"/>
-          <rect x="290" y="82" width="16" height="36"/>
-          <path d="M57 74 A26 26 0 0 1 57 126"/>
-          <path d="M263 74 A26 26 0 0 0 263 126"/>
-        </g>
-
-        <path d="M87 62 C 114 64, 132 76, 146 88" fill="none" stroke="#fbbf24" stroke-width="1.6" stroke-dasharray="3 3" marker-end="url(#pitchArrow)" opacity=".9"/>
-        <path d="M240 132 C 222 126, 210 114, 198 104" fill="none" stroke="#fbbf24" stroke-width="1.6" stroke-dasharray="3 3" marker-end="url(#pitchArrow)" opacity=".9"/>
-
-        <g filter="url(#tokenShadow)" class="token token-blue">
-          <circle cx="72" cy="100" r="9" fill="#2563eb" stroke="#ffffff" stroke-width="1.8"/>
-          <circle cx="106" cy="60" r="9" fill="#2563eb" stroke="#ffffff" stroke-width="1.8"/>
-          <circle cx="120" cy="130" r="9" fill="#2563eb" stroke="#ffffff" stroke-width="1.8"/>
-          <circle cx="152" cy="92" r="9" fill="#2563eb" stroke="#ffffff" stroke-width="1.8"/>
-          <circle cx="186" cy="70" r="9" fill="#2563eb" stroke="#ffffff" stroke-width="1.8"/>
-          <circle cx="206" cy="122" r="9" fill="#2563eb" stroke="#ffffff" stroke-width="1.8"/>
-        </g>
-
-        <g filter="url(#tokenShadow)" class="token token-orange">
-          <circle cx="238" cy="70" r="9" fill="#f59e0b" stroke="#ffffff" stroke-width="1.8"/>
-          <circle cx="258" cy="104" r="9" fill="#f59e0b" stroke="#ffffff" stroke-width="1.8"/>
-          <circle cx="220" cy="96" r="9" fill="#f59e0b" stroke="#ffffff" stroke-width="1.8"/>
-          <circle cx="272" cy="134" r="9" fill="#f59e0b" stroke="#ffffff" stroke-width="1.8"/>
-          <circle cx="180" cy="112" r="9" fill="#f59e0b" stroke="#ffffff" stroke-width="1.8"/>
-          <circle cx="98" cy="150" r="9" fill="#f59e0b" stroke="#ffffff" stroke-width="1.8"/>
-        </g>
-
-        <g font-family="Inter, sans-serif" font-size="7" font-weight="700" fill="#ffffff" text-anchor="middle" dominant-baseline="middle">
-          <text x="72" y="101">1</text>
-          <text x="106" y="61">6</text>
-          <text x="120" y="131">8</text>
-          <text x="152" y="93">10</text>
-          <text x="186" y="71">11</text>
-          <text x="206" y="123">9</text>
-          <text x="238" y="71">4</text>
-          <text x="258" y="105">5</text>
-          <text x="220" y="97">7</text>
-          <text x="272" y="135">2</text>
-          <text x="180" y="113">9</text>
-          <text x="98" y="151">3</text>
-        </g>
-      </svg>
-    </div>
-  </div>
-  {% endif %}
 </div>
 
 <div class="explore-catalog" id="techfix">
@@ -157,6 +74,9 @@
             <span class="assistant-badge">Connection issue</span>
           </div>
           <div class="assistant-error" data-chat-error-message></div>
+          <button type="button" class="btn btn-sm btn-outline-danger mt-2" data-chat-retry>
+            Try again
+          </button>
         </div>
       </div>
     </div>
@@ -174,8 +94,6 @@
   var userTemplate = document.getElementById('chat-user-template');
   var loadingTemplate = document.getElementById('chat-loading-template');
   var errorTemplate = document.getElementById('chat-error-template');
-  var promo = document.querySelector('.gpt-promo');
-  var promoButton = document.querySelector('.promo-btn');
   if (!form || !input || !thread) return;
 
   var chatUrl = form.getAttribute('data-chat-url');
@@ -211,11 +129,13 @@
     return node;
   }
 
-  function showError(message) {
+  function showError(message, failedPrompt) {
     var node = appendFromTemplate(errorTemplate);
     if (node) {
       var slot = node.querySelector('[data-chat-error-message]');
+      var retryButton = node.querySelector('[data-chat-retry]');
       if (slot) slot.textContent = message;
+      if (retryButton) retryButton.setAttribute('data-retry-message', failedPrompt);
     }
     scrollToBottom();
   }
@@ -234,13 +154,13 @@
     document.body.classList.add('chat-active');
   }
 
-  function sendMessage(message) {
+  function sendMessage(message, isRetry) {
     message = (message || '').trim();
     if (!message || sending || !chatUrl) return;
+    var messageToRetry = message;
 
     setChatActive();
-    if (promo) promo.hidden = true;
-    appendUserMessage(message);
+    if (!isRetry) appendUserMessage(message);
     input.value = '';
     setSending(true);
     var loading = showLoading();
@@ -295,7 +215,7 @@
         } else if (error && error.name === 'TypeError') {
           message = 'TechFix could not reach the server. Check your connection and try again.';
         }
-        showError(message);
+        showError(message, messageToRetry);
       })
       .finally(function () {
         if (timeoutId) window.clearTimeout(timeoutId);
@@ -313,6 +233,16 @@
   thread.addEventListener('click', function (event) {
     var target = event.target;
     if (!target || typeof target.closest !== 'function') return;
+    var retryButton = target.closest('[data-chat-retry]');
+    if (retryButton) {
+      event.preventDefault();
+      if (sending) return;
+      var errorNode = retryButton.closest('[data-chat-error]');
+      var failedMessage = retryButton.getAttribute('data-retry-message') || '';
+      removeNode(errorNode);
+      sendMessage(failedMessage, true);
+      return;
+    }
     var link = target.closest('[data-chat-prompt]');
     if (!link) return;
     event.preventDefault();
@@ -336,14 +266,6 @@
     think.addEventListener('click', function () {
       var pressed = think.getAttribute('aria-pressed') === 'true';
       think.setAttribute('aria-pressed', pressed ? 'false' : 'true');
-    });
-  }
-
-  if (promoButton) {
-    promoButton.addEventListener('click', function (event) {
-      event.preventDefault();
-      input.focus();
-      form.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
   }
 

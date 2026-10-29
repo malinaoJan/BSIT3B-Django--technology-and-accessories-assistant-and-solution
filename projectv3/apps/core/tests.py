@@ -46,6 +46,8 @@ class HomeViewTests(TestCase):
         self.assertContains(response, reverse('assistant_chat'))
         self.assertContains(response, 'data-csrf-token')
         self.assertContains(response, 'chat-thread')
+        self.assertContains(response, 'data-chat-retry')
+        self.assertContains(response, 'Try again')
         self.assertContains(response, 'Assistant')
         self.assertNotContains(response, '<body class="chat-active">')
         self.assertContains(response, 'No recent activity yet')
@@ -81,6 +83,8 @@ class HomeViewTests(TestCase):
         self.assertContains(response, 'guest-top-actions')
         self.assertContains(response, 'Guest mode')
         self.assertContains(response, 'Create account')
+        self.assertContains(response, 'id="techfix-search-form"')
+        self.assertNotContains(response, 'Answers you can see and play with.')
         self.assertNotContains(response, 'guest-sidebar-actions')
         self.assertNotContains(response, 'Scheduled')
         sidebar = response.content.decode().split(
@@ -91,6 +95,57 @@ class HomeViewTests(TestCase):
         self.assertNotIn(reverse('product_list'), sidebar)
         self.assertNotIn(reverse('accessory_list'), sidebar)
         self.assertNotIn('Recents', sidebar)
+
+    def test_login_and_register_pages_have_back_link(self):
+        for route in ('login', 'register'):
+            with self.subTest(route=route):
+                response = self.client.get(reverse(route))
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(
+                    response,
+                    '<a href="%s" class="btn btn-outline-secondary w-100 mt-2">Back</a>'
+                    % reverse('dashboard'),
+                    html=True,
+                )
+
+    def test_recent_activities_persist_for_each_account(self):
+        first_user = get_user_model().objects.create_user(
+            username='first-user', password='secret1234'
+        )
+        get_user_model().objects.create_user(
+            username='second-user', password='secret1234'
+        )
+        category = Category.objects.create(name='Recent activity laptops')
+        product = Product.objects.create(
+            name='Saved Recent Laptop',
+            category=category,
+            brand='TestBrand',
+            description='A laptop for recent activity testing.',
+            price='999.00',
+            stock_quantity=1,
+        )
+
+        self.client.force_login(first_user)
+        self.client.get(reverse('product_detail', args=[product.pk]))
+        self.client.post(reverse('logout'))
+        self.client.post(
+            reverse('login'),
+            {'username': 'first-user', 'password': 'secret1234'},
+        )
+
+        response = self.client.get(reverse('dashboard'))
+        sidebar = response.content.decode().split(
+            '<div class="sidebar-nav" id="recentActivities"', 1
+        )[1].split('</div>', 1)[0]
+        self.assertIn('Product: Saved Recent Laptop', sidebar)
+
+        self.client.post(reverse('logout'))
+        self.client.post(
+            reverse('login'),
+            {'username': 'second-user', 'password': 'secret1234'},
+        )
+        response = self.client.get(reverse('dashboard'))
+        self.assertNotContains(response, 'Product: Saved Recent Laptop')
 
     def test_logout_returns_user_to_guest_dashboard(self):
         user = get_user_model().objects.create_user(
@@ -191,6 +246,8 @@ class ScheduledAssistantViewTests(TestCase):
             self.assertContains(response, title)
         self.assertContains(response, reverse('assistant_chat'))
         self.assertContains(response, 'data-csrf-token')
+        self.assertContains(response, 'data-chat-retry')
+        self.assertContains(response, 'Try again')
         self.assertContains(response, 'data-sa-prompt')
         self.assertEqual(response.content.decode().count('class="scheduled-action-use"'), 5)
         self.assertContains(response, "sendMessage(button.getAttribute('data-sa-prompt') || '')")
@@ -406,6 +463,97 @@ class LibraryViewTests(TestCase):
         self.assertContains(response, 'Sony Camera Phone')
         self.assertNotContains(response, 'Unrelated Camera Phone')
 
+    @patch('apps.core.views._legacy_accessory_names', return_value={'Old Catalog Charger'})
+    @patch('apps.core.views._legacy_product_names', return_value={'Old Catalog Laptop'})
+    def test_library_images_show_current_products_and_accessories_without_bags(
+        self, _mock_product_names, _mock_accessory_names
+    ):
+        Product.objects.create(
+            name='Old Catalog Laptop',
+            category=self.category,
+            brand='OldBrand',
+            description='An older catalog laptop.',
+            price='399.00',
+            stock_quantity=1,
+            image='products/old-catalog-laptop.jpg',
+        )
+        Product.objects.create(
+            name='Latest Laptop',
+            category=self.category,
+            brand='NewBrand',
+            description='A current laptop.',
+            price='1299.00',
+            stock_quantity=1,
+            image='products/latest-laptop.jpg',
+        )
+        Product.objects.create(
+            name='Latest Travel Backpack',
+            category=self.category,
+            brand='NewBrand',
+            description='A current product backpack.',
+            price='89.00',
+            stock_quantity=1,
+            image='products/latest-travel-backpack.jpg',
+        )
+        Accessory.objects.create(
+            name='Old Catalog Charger',
+            category=self.category,
+            brand='OldBrand',
+            description='An older catalog charger.',
+            price='19.00',
+            stock_quantity=1,
+            image='accessories/old-catalog-charger.jpg',
+        )
+        Accessory.objects.create(
+            name='Latest USB-C Charger',
+            category=self.category,
+            brand='NewBrand',
+            description='A current charger.',
+            price='49.00',
+            stock_quantity=1,
+            image='accessories/latest-usb-c-charger.jpg',
+        )
+        Accessory.objects.create(
+            name='Latest Laptop Backpack',
+            category=self.category,
+            brand='NewBrand',
+            description='A current laptop backpack.',
+            price='89.00',
+            stock_quantity=1,
+            image='accessories/latest-laptop-backpack.jpg',
+        )
+        Accessory.objects.create(
+            name='Latest Camera Bag',
+            category=self.category,
+            brand='NewBrand',
+            description='A current camera bag.',
+            price='69.00',
+            stock_quantity=1,
+            image='accessories/latest-camera-bag.jpg',
+        )
+        Accessory.objects.create(
+            name='Laptop Sleeve Case for Latest Laptop',
+            category=self.category,
+            brand='NewBrand',
+            description='A current laptop sleeve.',
+            price='59.00',
+            stock_quantity=1,
+            image='accessories/latest-laptop-sleeve.jpg',
+        )
+
+        response = self.client.get(reverse('brand_list'))
+
+        self.assertEqual(response.status_code, 200)
+        image_names = [item['name'] for item in response.context['image_items']]
+        self.assertIn('Latest Laptop', image_names)
+        self.assertNotIn('Old Catalog Laptop', image_names)
+        self.assertNotIn('Latest Travel Backpack', image_names)
+        self.assertIn('Latest USB-C Charger', image_names)
+        self.assertNotIn('Old Catalog Charger', image_names)
+        self.assertNotIn('Latest Laptop Backpack', image_names)
+        self.assertNotIn('Latest Camera Bag', image_names)
+        self.assertNotIn('Laptop Sleeve Case for Latest Laptop', image_names)
+
 
 class ChatEndpointTests(TestCase):
     def setUp(self):
@@ -560,6 +708,7 @@ class ChatEndpointTests(TestCase):
         self.assertIn('TestBrand', html)
         self.assertIn('₱1,499.99', html)
         self.assertNotIn('$1,499.99', html)
+        self.assertNotIn('Stock', html)
         self.assertIn('RAM: 8GB', html)
         self.assertIn('View product', html)
         self.assertIn('data-chat-prompt="How do I reset it?"', html)
