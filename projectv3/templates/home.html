@@ -280,6 +280,9 @@
           throw new Error('TechFix returned an empty answer. Please try again.');
         }
         thread.insertAdjacentHTML('beforeend', data.html);
+        window.dispatchEvent(new CustomEvent('techfix:recent-activities', {
+          detail: data.recent_activities
+        }));
         scrollToBottom();
       })
       .catch(function (error) {

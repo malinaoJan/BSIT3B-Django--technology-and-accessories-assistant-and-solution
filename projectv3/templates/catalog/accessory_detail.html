@@ -1,5 +1,5 @@
 {% extends "theme/base.html" %}
-{% load brand_logos %}
+{% load brand_logos humanize %}
 {% block content %}
 <div class="container-xl">
   <div class="page-header d-print-none mb-3">
@@ -36,7 +36,7 @@
           </div>
           {% endif %}
           <div class="d-flex align-items-center justify-content-between mt-3">
-            <span class="h2 techfix-price mb-0">₱{{ item.price }}</span>
+            <span class="h2 techfix-price mb-0">₱{{ item.price|intcomma }}</span>
             {% if item.stock_quantity == 0 %}<span class="badge techfix-badge-outline">Out of stock</span>{% endif %}
           </div>
         </div>
@@ -69,7 +69,7 @@
                 <tr><td class="text-muted">Brand</td><td class="fw-semibold">{{ item.brand|default:"—" }}</td></tr>
                 <tr><td class="text-muted">Category</td><td>{{ item.category.name|default:"—" }}</td></tr>
                 <tr><td class="text-muted">Type</td><td class="text-capitalize">{{ item.kind }}</td></tr>
-                <tr><td class="text-muted">Price</td><td class="fw-semibold techfix-price">₱{{ item.price }}</td></tr>
+                <tr><td class="text-muted">Price</td><td class="fw-semibold techfix-price">₱{{ item.price|intcomma }}</td></tr>
                 <tr><td class="text-muted">Added</td><td>{{ item.created_at|date:"M j, Y" }}</td></tr>
                 <tr><td class="text-muted">Accessory ID</td><td>#{{ item.id }}</td></tr>
               </tbody>
@@ -88,7 +88,7 @@
       <a href="{% url 'product_detail' p.id %}" class="list-group-item list-group-item-action d-flex align-items-center gap-2">
         <i class="{{ p.display_icon }} text-muted"></i>
         <span class="flex-fill">{{ p.name }} <span class="text-muted">· {{ p.brand }}</span></span>
-        <span class="text-muted">₱{{ p.price }}</span>
+        <span class="text-muted">₱{{ p.price|intcomma }}</span>
       </a>
       {% endfor %}
     </div>

@@ -9,7 +9,7 @@
     <title>{% block title %}TechFix{% endblock %}</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='46' fill='%230d0d0d'/><path d='M50 24l6.5 19.5L76 50l-19.5 6.5L50 76l-6.5-19.5L24 50l19.5-6.5z' fill='white'/></svg>"/>
     <link href="{% static 'css/tabler.css' %}" rel="stylesheet"/>
-    <link href="{% static 'css/chatgpt-theme.css' %}?v=8" rel="stylesheet"/>
+    <link href="{% static 'css/chatgpt-theme.css' %}?v=10" rel="stylesheet"/>
     <link rel="preconnect" href="https://fonts.googleapis.com"/>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;550;600;700&display=swap" rel="stylesheet"/>
@@ -38,18 +38,31 @@
           </div>
         </header>
         {% else %}
-        <div class="mobile-topbar">
+        <header class="mobile-topbar auth-topbar">
           <button type="button" class="sidebar-icon-btn" id="sidebarToggle" aria-controls="appSidebar" aria-expanded="false" aria-label="Open sidebar">
             <i class="fa-solid fa-bars"></i>
           </button>
-          <span class="mobile-brand">
+          <a class="mobile-brand" href="{% url 'dashboard' %}">
             <span class="brand-orb" style="width:24px;height:24px;font-size:.65rem;"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
             TechFix
-          </span>
-          <span class="sidebar-avatar" aria-label="{% if request.user.is_authenticated %}{{ request.user.username }}{% else %}Guest{% endif %}">
-            {% if request.user.get_full_name %}{{ request.user.first_name|first|upper }}{{ request.user.last_name|first|upper }}{% else %}{{ request.user.username|first|upper }}{% endif %}
-          </span>
-        </div>
+          </a>
+          <div class="topbar-account">
+            <span class="sidebar-avatar" aria-hidden="true">
+              {% if request.user.get_full_name %}{{ request.user.first_name|first|upper }}{{ request.user.last_name|first|upper }}{% else %}{{ request.user.username|first|upper }}{% endif %}
+            </span>
+            <span class="topbar-user-meta">
+              <span class="topbar-user-name">{% if request.user.get_full_name %}{{ request.user.get_full_name }}{% else %}{{ request.user.username }}{% endif %}</span>
+              <span class="sidebar-user-role">{% if request.user.is_superuser %}Administrator{% else %}Free plan{% endif %}</span>
+            </span>
+            <form method="post" action="{% url 'logout' %}" class="m-0">
+              {% csrf_token %}
+              <button type="submit" class="topbar-logout">
+                <i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i>
+                <span>Log out</span>
+              </button>
+            </form>
+          </div>
+        </header>
         {% endif %}
 
         <main class="app-content">
@@ -65,6 +78,30 @@
         var toggle = document.getElementById('sidebarToggle');
         var backdrop = document.getElementById('sidebarBackdrop');
         var closeBtn = document.getElementById('sidebarClose');
+        var recentActivities = document.getElementById('recentActivities');
+
+        window.addEventListener('techfix:recent-activities', function (event) {
+          if (!recentActivities || !Array.isArray(event.detail)) return;
+          while (recentActivities.firstChild) {
+            recentActivities.removeChild(recentActivities.firstChild);
+          }
+          event.detail.forEach(function (activity) {
+            if (!activity || typeof activity.title !== 'string'
+                || typeof activity.url !== 'string'
+                || !activity.url.startsWith('/') || activity.url.startsWith('//')) return;
+            var link = document.createElement('a');
+            link.className = 'recent-link';
+            link.href = activity.url;
+            link.textContent = activity.title;
+            recentActivities.appendChild(link);
+          });
+          if (!recentActivities.firstChild) {
+            var empty = document.createElement('span');
+            empty.className = 'recent-empty';
+            empty.textContent = 'No recent activity yet';
+            recentActivities.appendChild(empty);
+          }
+        });
 
         function setOpen(open) {
           body.classList.toggle('sidebar-open', open);

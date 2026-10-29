@@ -1,4 +1,4 @@
-{% with current=request.resolver_match.url_name app=request.resolver_match.app_name %}
+{% with current=request.resolver_match.url_name %}
 <aside class="app-sidebar" id="appSidebar" aria-label="Sidebar">
   <div class="sidebar-head">
     <a href="{% url 'dashboard' %}" class="sidebar-brand">
@@ -20,101 +20,39 @@
         <span>New chat</span>
       </a>
       {% if request.user.is_authenticated %}
-      <a href="{% url 'product_list' %}" class="sidebar-link {% if current == 'product_list' or current == 'product_detail' %}active{% endif %}">
-        <i class="fa-regular fa-image"></i>
-        <span>Images</span>
-      </a>
       <a href="{% url 'scheduled_assistant' %}" class="sidebar-link {% if current == 'scheduled_assistant' %}active{% endif %}">
         <i class="fa-regular fa-calendar"></i>
-        <span>Scheduled</span>
+        <span>Assistant</span>
       </a>
       {% endif %}
       <a href="{% url 'brand_list' %}" class="sidebar-link {% if current == 'brand_list' or current == 'brand_detail' %}active{% endif %}">
         <i class="fa-solid fa-book-open"></i>
         <span>Library</span>
       </a>
-      {% if request.user.is_authenticated %}
-      <a href="{% url 'accessory_list' %}" class="sidebar-link {% if current == 'accessory_list' or current == 'accessory_detail' %}active{% endif %}">
-        <i class="fa-solid fa-puzzle-piece"></i>
-        <span>Plugins</span>
-      </a>
-      <a href="{% url 'info:info_list' %}" class="sidebar-link {% if app == 'info' %}active{% endif %}">
-        <i class="fa-solid fa-code"></i>
-        <span>Codex</span>
-      </a>
-      {% endif %}
       <a href="{% url 'dashboard' %}#techfix" class="sidebar-link {% if current == 'dashboard' and request.GET.q %}active{% endif %}">
         <i class="fa-regular fa-compass"></i>
         <span>Explore</span>
       </a>
     </div>
 
-    <div class="sidebar-section">
-      {% if request.user.is_authenticated %}
-      <div class="sidebar-label">
-        <span>Projects</span>
-        <a href="{% url 'brand_list' %}" title="Browse brand folders" aria-label="Browse brand folders">
-          <i class="fa-solid fa-plus"></i>
-        </a>
-      </div>
-      <div class="sidebar-nav">
-        <a href="{% url 'dashboard' %}#techfix" class="sidebar-link">
-          <i class="fa-regular fa-folder"></i>
-          <span>TechFix catalog</span>
-        </a>
-        <a href="{% url 'solution_list' %}" class="sidebar-link {% if current == 'solution_list' %}active{% endif %}">
-          <i class="fa-solid fa-wrench"></i>
-          <span>Repair guides</span>
-        </a>
-        {% if request.user.is_authenticated %}
-        <a href="{% url 'info:info_list' %}" class="sidebar-link">
-          <i class="fa-regular fa-address-card"></i>
-          <span>Info records</span>
-        </a>
-        {% endif %}
-        {% if request.user.is_superuser %}
-        <a href="{% url 'users:user_list' %}" class="sidebar-link {% if app == 'users' %}active{% endif %}">
-          <i class="fa-solid fa-users"></i>
-          <span>Manage users</span>
-        </a>
-        <a href="/admin/" class="sidebar-link">
-          <i class="fa-solid fa-sliders"></i>
-          <span>Admin panel</span>
-        </a>
-        {% endif %}
-      </div>
-      {% endif %}
-    </div>
-
+    {% if request.user.is_authenticated %}
     <div class="sidebar-section">
       <div class="sidebar-label">
         <span>Recents</span>
       </div>
-      <div class="sidebar-nav">
-        <a href="{% url 'dashboard' %}" class="recent-link">Embed player layout</a>
-        <a href="{% url 'solution_list' %}?q=django" class="recent-link">Fix Django Tag Library</a>
-        <a href="{% url 'solution_list' %}?q=github" class="recent-link">Fix GitHub 404 Error</a>
+      <div class="sidebar-nav" id="recentActivities" aria-live="polite">
+        {% for activity in recent_activities %}
+        <a href="{{ activity.url }}" class="recent-link">{{ activity.title }}</a>
+        {% empty %}
+        <span class="recent-empty">No recent activity yet</span>
+        {% endfor %}
       </div>
     </div>
+    {% endif %}
   </nav>
 
   {% if request.user.is_authenticated %}
   <div class="sidebar-footer">
-    <div class="sidebar-user">
-      <span class="sidebar-avatar">
-        {% if user.first_name and user.last_name %}{{ user.first_name|first|upper }}{{ user.last_name|first|upper }}{% else %}{{ user.username|first|upper }}{% endif %}
-      </span>
-      <span class="sidebar-user-meta">
-        <span class="sidebar-user-name">{% if user.get_full_name %}{{ user.get_full_name }}{% else %}{{ user.username }}{% endif %}</span>
-        <span class="sidebar-user-role">{% if user.is_superuser %}Administrator{% else %}Free plan{% endif %}</span>
-      </span>
-      <form method="post" action="{% url 'logout' %}" class="m-0">
-        {% csrf_token %}
-        <button type="submit" class="sidebar-logout" title="Log out" aria-label="Log out">
-          <i class="fa-solid fa-arrow-right-from-bracket"></i>
-        </button>
-      </form>
-    </div>
     <a href="{% url 'product_list' %}" class="claim-offer">
       <span><i class="fa-solid fa-gift"></i> Claim offer</span>
       <i class="fa-solid fa-chevron-right"></i>

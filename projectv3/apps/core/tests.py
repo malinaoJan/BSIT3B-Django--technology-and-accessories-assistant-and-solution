@@ -46,8 +46,31 @@ class HomeViewTests(TestCase):
         self.assertContains(response, reverse('assistant_chat'))
         self.assertContains(response, 'data-csrf-token')
         self.assertContains(response, 'chat-thread')
-        self.assertContains(response, 'Scheduled')
+        self.assertContains(response, 'Assistant')
         self.assertNotContains(response, '<body class="chat-active">')
+        self.assertContains(response, 'No recent activity yet')
+        sidebar = response.content.decode().split(
+            '<aside class="app-sidebar"', 1
+        )[1].split('</aside>', 1)[0]
+        for label in (
+            'Images', 'Plugins', 'Codex', 'Projects', 'TechFix catalog',
+            'Repair guides', 'Info records', 'Manage users', 'Admin panel',
+        ):
+            self.assertNotIn(label, sidebar)
+
+    def test_administrator_and_logout_render_in_topbar(self):
+        user = get_user_model().objects.create_superuser(
+            username='site-admin', email='admin@example.com', password='secret1234'
+        )
+        self.client.force_login(user)
+
+        response = self.client.get(reverse('dashboard'))
+
+        self.assertContains(response, 'class="mobile-topbar auth-topbar"')
+        self.assertContains(response, 'Administrator')
+        self.assertContains(response, 'Log out')
+        self.assertContains(response, 'action="%s"' % reverse('logout'))
+        self.assertNotContains(response, 'class="sidebar-user"')
 
     def test_guest_can_open_home_and_browse_links(self):
         response = self.client.get(reverse('dashboard'))
@@ -67,6 +90,7 @@ class HomeViewTests(TestCase):
             self.assertNotIn(label, sidebar)
         self.assertNotIn(reverse('product_list'), sidebar)
         self.assertNotIn(reverse('accessory_list'), sidebar)
+        self.assertNotIn('Recents', sidebar)
 
     def test_logout_returns_user_to_guest_dashboard(self):
         user = get_user_model().objects.create_user(
@@ -168,6 +192,8 @@ class ScheduledAssistantViewTests(TestCase):
         self.assertContains(response, reverse('assistant_chat'))
         self.assertContains(response, 'data-csrf-token')
         self.assertContains(response, 'data-sa-prompt')
+        self.assertEqual(response.content.decode().count('class="scheduled-action-use"'), 5)
+        self.assertContains(response, "sendMessage(button.getAttribute('data-sa-prompt') || '')")
         self.assertContains(response, 'scheduledComposer')
         self.assertNotContains(response, 'scheduled-assistant-page has-conversation')
 
@@ -254,6 +280,67 @@ class LibraryViewTests(TestCase):
             with self.subTest(route=route):
                 self.assertEqual(self.client.get(route).status_code, 200)
 
+    def test_product_detail_back_button_returns_to_products(self):
+        response = self.client.get(
+            reverse('product_detail', args=[Product.objects.first().pk])
+        )
+
+        self.assertContains(
+            response,
+            '<a href="%s" class="btn btn-outline-primary btn-sm">'
+            '<i class="fas fa-arrow-left me-1"></i>Back</a>'
+            % (reverse('dashboard') + '#techfix'),
+            html=True,
+        )
+        self.assertNotContains(response, 'All products')
+
+    def test_product_and_accessory_prices_use_thousands_separators(self):
+        product = Product.objects.create(
+            name='Premium Laptop',
+            category=self.category,
+            brand='TestBrand',
+            description='A premium laptop.',
+            price='1299.00',
+            stock_quantity=1,
+        )
+        accessory = Accessory.objects.create(
+            name='Premium Dock',
+            category=self.category,
+            brand='TestBrand',
+            description='A premium dock.',
+            price='2345.67',
+            stock_quantity=1,
+        )
+        accessory.compatible_products.add(product)
+
+        product_list = self.client.get(reverse('product_list'))
+        self.assertContains(product_list, '₱1,299.00')
+        product_detail = self.client.get(
+            reverse('product_detail', args=[product.pk])
+        )
+        self.assertContains(product_detail, '₱1,299.00')
+        self.assertContains(product_detail, '₱2,345.67')
+
+        accessory_list = self.client.get(reverse('accessory_list'))
+        self.assertContains(accessory_list, '₱2,345.67')
+        accessory_detail = self.client.get(
+            reverse('accessory_detail', args=[accessory.pk])
+        )
+        self.assertContains(accessory_detail, '₱2,345.67')
+        self.assertContains(accessory_detail, '₱1,299.00')
+
+    def test_brand_detail_back_button_returns_to_brands(self):
+        response = self.client.get(reverse('brand_detail', args=['TestBrand']))
+
+        self.assertContains(
+            response,
+            '<a href="%s" class="btn btn-outline-primary btn-sm">'
+            '<i class="fas fa-arrow-left me-1"></i>Back</a>' % reverse('brand_list'),
+            html=True,
+        )
+        self.assertNotContains(response, 'All brands')
+        self.assertNotContains(response, '>Dashboard</a>')
+
     def test_library_page_renders_new_layout(self):
         response = self.client.get(reverse('brand_list'))
 
@@ -264,6 +351,19 @@ class LibraryViewTests(TestCase):
             self.assertContains(response, 'data-library-tab="%s"' % tab)
         self.assertContains(response, 'TestBrand')
         self.assertContains(response, 'data-library-favorite="TestBrand"')
+
+    def test_recent_page_activity_is_shown_to_signed_in_user(self):
+        self.client.get(reverse('product_detail', args=[Product.objects.first().pk]))
+        self.client.get(reverse('brand_detail', args=['TestBrand']))
+
+        response = self.client.get(reverse('dashboard'))
+        sidebar = response.content.decode().split(
+            '<div class="sidebar-nav" id="recentActivities"', 1
+        )[1].split('</div>', 1)[0]
+
+        self.assertIn('Brand: TestBrand', sidebar)
+        self.assertIn('Product: Test Laptop', sidebar)
+        self.assertLess(sidebar.index('Brand: TestBrand'), sidebar.index('Product: Test Laptop'))
 
     def test_library_search_filters_folders(self):
         response = self.client.get(reverse('brand_list'), {'q': 'TestBrand'})
@@ -330,7 +430,9 @@ class ChatEndpointTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn('html', response.json())
+        self.assertEqual(response.json()['recent_activities'], [])
         self.assertEqual(len(self.client.session[CHAT_SESSION_KEY]), 2)
+        self.assertNotIn('techfix_recent_activity', self.client.session)
 
     def test_chat_rejects_empty_message(self):
         response = self.post_message('   ')
@@ -373,6 +475,14 @@ class ChatEndpointTests(TestCase):
         self.assertEqual(history[1]['role'], 'assistant')
         self.assertEqual(
             history[1]['answer']['summary'], 'Check the cable and charger.'
+        )
+        self.assertEqual(
+            data['recent_activities'][0]['title'],
+            'My phone will not charge',
+        )
+        self.assertEqual(
+            data['recent_activities'][0]['url'],
+            reverse('dashboard') + '#techfix',
         )
 
     @patch('apps.core.views.enhance_answer')
@@ -432,7 +542,7 @@ class ChatEndpointTests(TestCase):
             brand='TestBrand',
             description='A test phone.',
             specifications='RAM: 8GB, Storage: 128GB',
-            price='499.99',
+            price='1499.99',
             stock_quantity=3,
         )
         mocked_enhance.return_value = ai_answer(
@@ -448,7 +558,8 @@ class ChatEndpointTests(TestCase):
         self.assertEqual(response.status_code, 200)
         html = response.json()['html']
         self.assertIn('TestBrand', html)
-        self.assertIn('499.99', html)
+        self.assertIn('₱1,499.99', html)
+        self.assertNotIn('$1,499.99', html)
         self.assertIn('RAM: 8GB', html)
         self.assertIn('View product', html)
         self.assertIn('data-chat-prompt="How do I reset it?"', html)

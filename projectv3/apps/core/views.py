@@ -21,6 +21,7 @@ from django.views.decorators.http import require_http_methods, require_POST
 
 from .assistant import build_answer, search_terms
 from .gemini import enhance_answer
+from .recent_activity import get_recent_activities, record_recent_activity
 
 logger = logging.getLogger(__name__)
 
@@ -374,6 +375,9 @@ def _append_chat_turn(request, message, answer):
     history.append({'role': 'user', 'text': message})
     history.append({'role': 'assistant', 'answer': answer})
     _save_chat_history(request, history)
+    record_recent_activity(
+        request, 'assistant', message, reverse('dashboard') + '#techfix'
+    )
 
 
 def _context_query(message, history):
@@ -524,7 +528,10 @@ def assistant_chat(request):
             {'error': 'TechFix could not display that answer. Please try again.'},
             status=500,
         )
-    return JsonResponse({'html': html})
+    return JsonResponse({
+        'html': html,
+        'recent_activities': get_recent_activities(request),
+    })
 
 
 def _get_all_brands():
@@ -616,6 +623,12 @@ def _canonical_brand(brand):
 
 def brand_list(request):
     query = request.GET.get('q', '').strip()
+    record_recent_activity(
+        request,
+        'library',
+        'Brand library' + (': ' + query if query else ''),
+        request.get_full_path(),
+    )
     folders = _get_brand_folders()
     if query:
         folders = [f for f in folders if query.lower() in f['name'].lower()]
@@ -638,6 +651,9 @@ def brand_detail(request, brand):
     if canonical is None:
         raise Http404('Brand not found.')
     query = request.GET.get('q', '').strip()
+    record_recent_activity(
+        request, 'brand', 'Brand: ' + canonical, request.get_full_path()
+    )
 
     products = _new_first(
         Product.objects.filter(brand__iexact=canonical).select_related('category'),
@@ -671,6 +687,12 @@ def product_list(request):
 
     query = request.GET.get('q', '').strip()
     active_brand = request.GET.get('brand', '').strip()
+    record_recent_activity(
+        request,
+        'products',
+        'Products' + (': ' + query if query else ''),
+        request.get_full_path(),
+    )
     qs = _new_first(Product.objects.select_related('category').all(), _legacy_product_names())
     if active_brand:
         qs = qs.filter(brand__iexact=active_brand)
@@ -687,6 +709,12 @@ def accessory_list(request):
 
     query = request.GET.get('q', '').strip()
     active_brand = request.GET.get('brand', '').strip()
+    record_recent_activity(
+        request,
+        'accessories',
+        'Accessories' + (': ' + query if query else ''),
+        request.get_full_path(),
+    )
     qs = _new_first(Accessory.objects.select_related('category').all(), _legacy_accessory_names())
     if active_brand:
         qs = qs.filter(brand__iexact=active_brand)
@@ -707,6 +735,9 @@ def product_detail(request, pk):
         product = Product.objects.select_related('category').get(pk=pk)
     except Product.DoesNotExist:
         raise Http404('Product not found.')
+    record_recent_activity(
+        request, 'product', 'Product: ' + product.name, request.get_full_path()
+    )
 
     related_accessories = Accessory.objects.filter(
         compatible_products=product
@@ -744,6 +775,9 @@ def accessory_detail(request, pk):
         item = Accessory.objects.select_related('category').get(pk=pk)
     except Accessory.DoesNotExist:
         raise Http404('Accessory not found.')
+    record_recent_activity(
+        request, 'accessory', 'Accessory: ' + item.name, request.get_full_path()
+    )
 
     compatible_products = item.compatible_products.select_related('category').order_by('name')
     if item.brand:
@@ -766,6 +800,12 @@ def solution_list(request):
 
     query = request.GET.get('q', '').strip()
     active_brand = request.GET.get('brand', '').strip()
+    record_recent_activity(
+        request,
+        'repair_guides',
+        'Repair guides' + (': ' + query if query else ''),
+        request.get_full_path(),
+    )
     qs = Solution.objects.select_related('category', 'related_product').all().order_by('-created_at')
     if active_brand:
         qs = qs.filter(

@@ -360,6 +360,13 @@ a:hover {
   color: var(--cg-text);
 }
 
+.recent-empty {
+  display: block;
+  padding: 7px 10px;
+  color: var(--cg-faint);
+  font-size: 0.8rem;
+}
+
 .sidebar-footer {
   margin-top: auto;
   padding: 12px 2px 0;
@@ -495,6 +502,58 @@ a:hover {
   backdrop-filter: blur(14px);
 }
 
+.auth-topbar {
+  display: flex;
+  justify-content: flex-end;
+  min-height: 56px;
+  padding: 10px 32px;
+}
+
+.topbar-account {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.topbar-user-meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.topbar-user-name {
+  max-width: 180px;
+  overflow: hidden;
+  color: var(--cg-text);
+  font-size: 0.83rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar-logout {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid var(--cg-border);
+  border-radius: 9px;
+  background: var(--cg-surface);
+  color: var(--cg-muted);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background-color 0.14s ease, color 0.14s ease;
+}
+
+.topbar-logout:hover {
+  background: var(--cg-hover);
+  color: var(--cg-text);
+}
+
 .guest-topbar {
   display: flex;
   justify-content: space-between;
@@ -551,6 +610,11 @@ a:hover {
     display: flex;
   }
 
+  .auth-topbar {
+    justify-content: space-between;
+    padding: 10px 14px;
+  }
+
   .guest-topbar {
     padding: 10px 14px;
   }
@@ -586,9 +650,32 @@ a:hover {
   .guest-topbar .sidebar-icon-btn {
     display: none;
   }
+
+  .auth-topbar .sidebar-icon-btn,
+  .auth-topbar .mobile-brand {
+    display: none;
+  }
 }
 
 @media (max-width: 575.98px) {
+  .auth-topbar {
+    gap: 6px;
+  }
+
+  .topbar-account {
+    gap: 7px;
+  }
+
+  .topbar-account .sidebar-avatar,
+  .topbar-user-name {
+    display: none;
+  }
+
+  .topbar-logout {
+    gap: 5px;
+    padding: 0 8px;
+  }
+
   .guest-topbar {
     gap: 8px;
   }
@@ -3988,6 +4075,32 @@ hr {
   border-bottom: 1px solid #e5e7eb;
 }
 
+.scheduled-action-use {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.scheduled-action-use:hover .scheduled-action-title,
+.scheduled-action-use:focus-visible .scheduled-action-title {
+  color: var(--cg-accent);
+}
+
+.scheduled-action-use:focus-visible {
+  border-radius: 8px;
+  outline: 2px solid var(--cg-accent);
+  outline-offset: 4px;
+}
+
 .scheduled-action-icon {
   display: grid;
   place-items: center;
@@ -4065,6 +4178,10 @@ hr {
     padding: 15px 0;
   }
 
+  .scheduled-action-use {
+    gap: 12px;
+  }
+
   .scheduled-action-icon {
     flex-basis: 42px;
     width: 42px;
@@ -4095,6 +4212,10 @@ hr {
   }
 
   .scheduled-action {
+    gap: 10px;
+  }
+
+  .scheduled-action-use {
     gap: 10px;
   }
 
