@@ -5,7 +5,7 @@
       <span class="brand-orb"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
       <span>TechFix</span>
     </a>
-    <a href="{% url 'dashboard' %}" class="sidebar-icon-btn" title="New chat" aria-label="New chat">
+    <a href="{% url 'dashboard' %}?new=1" class="sidebar-icon-btn" title="New chat" aria-label="New chat">
       <i class="fa-regular fa-pen-to-square"></i>
     </a>
     <button type="button" class="sidebar-icon-btn sidebar-close" id="sidebarClose" aria-label="Close sidebar">
@@ -15,7 +15,7 @@
 
   <nav class="sidebar-scroll">
     <div class="sidebar-nav">
-      <a href="{% url 'dashboard' %}" class="sidebar-link {% if current == 'dashboard' and not request.GET.q %}active{% endif %}">
+      <a href="{% url 'dashboard' %}?new=1" class="sidebar-link {% if current == 'dashboard' and not request.GET.q and not chat_messages %}active{% endif %}">
         <i class="fa-regular fa-comment-dots"></i>
         <span>New chat</span>
       </a>
@@ -23,7 +23,7 @@
         <i class="fa-regular fa-image"></i>
         <span>Images</span>
       </a>
-      <a href="{% url 'solution_list' %}" class="sidebar-link {% if current == 'solution_list' %}active{% endif %}">
+      <a href="{% url 'scheduled_assistant' %}" class="sidebar-link {% if current == 'scheduled_assistant' %}active{% endif %}">
         <i class="fa-regular fa-calendar"></i>
         <span>Scheduled</span>
       </a>
@@ -57,7 +57,7 @@
           <i class="fa-regular fa-folder"></i>
           <span>TechFix catalog</span>
         </a>
-        <a href="{% url 'solution_list' %}" class="sidebar-link">
+        <a href="{% url 'solution_list' %}" class="sidebar-link {% if current == 'solution_list' %}active{% endif %}">
           <i class="fa-solid fa-wrench"></i>
           <span>Repair guides</span>
         </a>

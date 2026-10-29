@@ -162,3 +162,11 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
 GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-3.1-flash-lite')
+GEMINI_FALLBACK_MODELS = [
+    name.strip()
+    for name in os.environ.get(
+        'GEMINI_FALLBACK_MODELS',
+        'gemini-flash-lite-latest,gemini-3-flash-preview',
+    ).split(',')
+    if name.strip()
+]

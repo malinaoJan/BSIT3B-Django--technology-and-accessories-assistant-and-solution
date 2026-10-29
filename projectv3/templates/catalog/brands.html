@@ -1,53 +1,403 @@
 {% extends "theme/base.html" %}
 {% load brand_logos %}
+{% block title %}Library | TechFix{% endblock %}
+{% block body_class %}library-page{% endblock %}
 {% block content %}
-<div class="container-xl">
-  <div class="page-header d-print-none">
-    <div class="container-xl">
-      <div class="row align-items-center">
-        <div class="col">
-          <div class="page-pretitle">Catalog</div>
-          <h2 class="page-title"><i class="fas fa-folder-open me-2 techfix-section-icon"></i>Brand Folders ({{ total }})</h2>
+<div class="container-xl library-shell" id="libraryPage" data-initial-tab="{{ active_tab }}" data-query="{{ query }}">
+  <header class="library-header">
+    <h1 class="library-title">Library</h1>
+    <div class="library-toolbar">
+      <details class="library-menu library-menu-filter">
+        <summary class="library-icon-btn" title="Filter folders" aria-label="Filter folders">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
+        </summary>
+        <div class="library-popover">
+          <div class="library-popover-title">Filter folders</div>
+          <button type="button" class="library-option is-active" data-library-filter="all" aria-pressed="true">All brands</button>
+          <button type="button" class="library-option" data-library-filter="products" aria-pressed="false">Has products</button>
+          <button type="button" class="library-option" data-library-filter="accessories" aria-pressed="false">Has accessories</button>
+          <button type="button" class="library-option" data-library-filter="solutions" aria-pressed="false">Has solutions</button>
         </div>
-        <div class="col-auto">
-          <a href="{% url 'dashboard' %}" class="btn btn-outline-primary"><i class="fas fa-arrow-left me-1"></i>Dashboard</a>
-        </div>
+      </details>
+
+      <div class="library-view-toggle" role="group" aria-label="Library layout">
+        <button type="button" class="library-view-btn is-active" data-library-view="grid" aria-pressed="true" title="Grid view" aria-label="Grid view">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="4" y="4" width="6" height="6" rx="1.2"/><rect x="14" y="4" width="6" height="6" rx="1.2"/><rect x="4" y="14" width="6" height="6" rx="1.2"/><rect x="14" y="14" width="6" height="6" rx="1.2"/></svg>
+        </button>
+        <button type="button" class="library-view-btn" data-library-view="list" aria-pressed="false" title="List view" aria-label="List view">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></svg>
+        </button>
       </div>
+
+      <form method="get" action="{% url 'brand_list' %}" class="library-search" role="search">
+        <button type="submit" class="library-search-submit" aria-label="Search library">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+        </button>
+        <input type="search" name="q" value="{{ query }}" class="library-search-input" placeholder="Search library" aria-label="Search library" autocomplete="off">
+        {% if query %}
+        <a href="{% url 'brand_list' %}" class="library-search-clear" aria-label="Clear search">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="m6 6 12 12M18 6 6 18"/></svg>
+        </a>
+        {% endif %}
+      </form>
+
+      <details class="library-menu library-new">
+        <summary class="library-new-btn">New <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"/></svg></summary>
+        <div class="library-popover library-popover-right">
+          <a href="{% url 'dashboard' %}?new=1" class="library-menu-item">
+            <i class="fa-regular fa-comment-dots" aria-hidden="true"></i>New chat
+          </a>
+          {% if request.user.is_staff %}
+          <div class="library-menu-sep"></div>
+          <a href="{% url 'admin:core_product_add' %}" class="library-menu-item">
+            <i class="fa-solid fa-laptop" aria-hidden="true"></i>Add product
+          </a>
+          <a href="{% url 'admin:core_accessory_add' %}" class="library-menu-item">
+            <i class="fa-solid fa-headphones" aria-hidden="true"></i>Add accessory
+          </a>
+          <a href="{% url 'admin:core_solution_add' %}" class="library-menu-item">
+            <i class="fa-solid fa-screwdriver-wrench" aria-hidden="true"></i>Add solution
+          </a>
+          {% else %}
+          <div class="library-menu-sep"></div>
+          <a href="{% url 'product_list' %}" class="library-menu-item">
+            <i class="fa-solid fa-laptop" aria-hidden="true"></i>Browse products
+          </a>
+          {% endif %}
+        </div>
+      </details>
+
+      <details class="library-menu library-menu-sort">
+        <summary class="library-icon-btn" title="Sort library" aria-label="Sort library">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 6h10M4 12h7M4 18h4"/><path d="M18 8v9"/><path d="m15 14 3 3 3-3"/></svg>
+        </summary>
+        <div class="library-popover library-popover-right">
+          <div class="library-popover-title">Sort by</div>
+          <button type="button" class="library-option is-active" data-library-sort="suggested" aria-pressed="true">Suggested</button>
+          <button type="button" class="library-option" data-library-sort="name-asc" aria-pressed="false">Name A-Z</button>
+          <button type="button" class="library-option" data-library-sort="name-desc" aria-pressed="false">Name Z-A</button>
+          <button type="button" class="library-option" data-library-sort="most" aria-pressed="false">Most items</button>
+          <button type="button" class="library-option" data-library-sort="fewest" aria-pressed="false">Fewest items</button>
+        </div>
+      </details>
     </div>
+  </header>
+
+  <div class="library-tabs" role="tablist" aria-label="Library sections">
+    <button type="button" class="library-tab{% if active_tab == 'suggested' %} is-active{% endif %}" data-library-tab="suggested" role="tab" aria-selected="{% if active_tab == 'suggested' %}true{% else %}false{% endif %}">Suggested</button>
+    <button type="button" class="library-tab" data-library-tab="favorites" role="tab" aria-selected="false">Favorites</button>
+    <button type="button" class="library-tab" data-library-tab="folders" role="tab" aria-selected="false">Folders</button>
+    <button type="button" class="library-tab" data-library-tab="images" role="tab" aria-selected="false">Images</button>
+    <button type="button" class="library-tab{% if active_tab == 'all' %} is-active{% endif %}" data-library-tab="all" role="tab" aria-selected="{% if active_tab == 'all' %}true{% else %}false{% endif %}">All</button>
   </div>
-  <br>
-  <form method="get" class="mb-3" style="max-width:480px;">
-    <div class="input-group">
-      <input type="text" name="q" value="{{ query }}" class="form-control" placeholder="Search brand folders...">
-      {% if query %}<a href="{% url 'brand_list' %}" class="btn btn-outline-secondary">Clear</a>{% endif %}
-      <button class="btn btn-primary" type="submit"><i class="fas fa-search"></i></button>
-    </div>
-  </form>
-  <div class="row row-deck row-cards">
-    {% for folder in brands %}
-    <div class="col-sm-6 col-lg-4">
-      <a href="{% url 'brand_detail' folder.name %}" class="brand-folder text-decoration-none">
-        <div class="brand-cover {{ folder.accent }}">
-          {% with logo=folder.name|brand_logo %}
-          {% if logo %}<span class="brand-logo"><img src="{{ logo }}" alt="{{ folder.name }} logo" loading="lazy"></span>{% else %}<span class="brand-mono">{{ folder.name|first|upper }}</span>{% endif %}
-          {% endwith %}
-          <i class="fas fa-folder-open brand-ghost"></i>
-        </div>
-        <div class="brand-body">
-          <div class="brand-name">{{ folder.name }}</div>
-          <div class="brand-sub">Brand folder</div>
-          <div class="brand-stats">
-            <div class="brand-stat"><i class="fas fa-laptop"></i><b>{{ folder.product_count }}</b><span>Products</span></div>
-            <div class="brand-stat"><i class="fas fa-headphones"></i><b>{{ folder.accessory_count }}</b><span>Accessories</span></div>
-            <div class="brand-stat"><i class="fas fa-screwdriver-wrench"></i><b>{{ folder.solution_count }}</b><span>Solutions</span></div>
-          </div>
-          <div class="brand-open">Open folder <i class="fas fa-arrow-right ms-1"></i></div>
-        </div>
-      </a>
-    </div>
-    {% empty %}
-    <div class="col-12"><div class="empty py-5"><div class="empty-icon"><i class="fas fa-folder-open fa-2x"></i></div><p class="empty-title">No brands found</p><p class="empty-subtitle">Try a different search.</p></div></div>
-    {% endfor %}
+
+  <div class="library-panels">
+    <section class="library-panel" data-library-panel="folders" role="tabpanel" aria-label="Brand folders">
+      <div class="library-grid" data-library-grid data-view="grid">
+        {% for folder in brands %}
+        {% with logo=folder.name|brand_logo total_items=folder.product_count|add:folder.accessory_count|add:folder.solution_count %}
+        <article class="library-card" data-library-card data-name="{{ folder.name|lower }}" data-order="{{ forloop.counter0 }}" data-count="{{ total_items }}" data-products="{{ folder.product_count }}" data-accessories="{{ folder.accessory_count }}" data-solutions="{{ folder.solution_count }}" data-favorite="0">
+          <a href="{% url 'brand_detail' folder.name %}" class="library-card-link">
+            <span class="library-card-top">
+              <svg class="library-card-file" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></svg>
+              <span class="library-card-name" title="{{ folder.name }}">{{ folder.name }}</span>
+            </span>
+            <span class="library-card-preview">
+              {% if logo %}
+              <img src="{{ logo }}" alt="{{ folder.name }} logo" class="library-card-logo" loading="lazy">
+              {% else %}
+              <span class="library-card-mono" aria-hidden="true">{{ folder.name|first|upper }}</span>
+              {% endif %}
+              <span class="library-card-count">{{ total_items }} item{{ total_items|pluralize }}</span>
+            </span>
+          </a>
+          <button type="button" class="library-card-fav" data-library-favorite="{{ folder.name }}" aria-label="Add {{ folder.name }} to favorites" aria-pressed="false" title="Favorite {{ folder.name }}">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-2.9-5.6 2.9 1.1-6.2L3 9.6l6.2-.9z"/></svg>
+          </button>
+        </article>
+        {% endwith %}
+        {% endfor %}
+      </div>
+      <div class="library-empty" data-library-empty="folders" {% if brands %}hidden{% endif %}>
+        <span class="library-empty-icon"><i class="fa-regular fa-folder-open" aria-hidden="true"></i></span>
+        <p class="library-empty-title" data-library-empty-title>{% if query %}No folders match "{{ query }}"{% else %}No brand folders yet{% endif %}</p>
+        <p class="library-empty-text" data-library-empty-text>{% if query %}Try a different search.{% else %}Folders appear automatically when products or accessories are added.{% endif %}</p>
+        {% if query %}
+        <a href="{% url 'brand_list' %}" class="library-empty-action">Clear search</a>
+        {% elif brands %}
+        <button type="button" class="library-empty-action" data-library-reset>Show all folders</button>
+        {% else %}
+        <a href="{% url 'product_list' %}" class="library-empty-action">Browse products</a>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="library-panel" data-library-panel="images" role="tabpanel" aria-label="Images" {% if active_tab != 'images' and active_tab != 'all' %}hidden{% endif %}>
+      <div class="library-grid library-image-grid" data-library-grid data-view="grid">
+        {% for item in image_items %}
+        <a href="{{ item.url }}" class="library-image-card" data-library-image data-name="{{ item.name|lower }}" data-order="{{ forloop.counter0 }}">
+          <span class="library-image-thumb">
+            <img src="{{ item.image_url }}" alt="{{ item.name }}" loading="lazy">
+          </span>
+          <span class="library-image-meta">
+            <span class="library-image-name" title="{{ item.name }}">{{ item.name }}</span>
+            <span class="library-image-sub">{{ item.brand|default:"TechFix" }} &middot; {{ item.kind }}</span>
+          </span>
+        </a>
+        {% endfor %}
+      </div>
+      <div class="library-empty" {% if image_items %}hidden{% endif %}>
+        <span class="library-empty-icon"><i class="fa-regular fa-images" aria-hidden="true"></i></span>
+        <p class="library-empty-title">No images found</p>
+        <p class="library-empty-text">Product and accessory photos will appear here.</p>
+      </div>
+    </section>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var root = document.getElementById('libraryPage');
+  if (!root) return;
+
+  var tabs = Array.prototype.slice.call(root.querySelectorAll('[data-library-tab]'));
+  var filterButtons = Array.prototype.slice.call(root.querySelectorAll('[data-library-filter]'));
+  var sortButtons = Array.prototype.slice.call(root.querySelectorAll('[data-library-sort]'));
+  var viewButtons = Array.prototype.slice.call(root.querySelectorAll('[data-library-view]'));
+  var folderPanel = root.querySelector('[data-library-panel="folders"]');
+  var imagePanel = root.querySelector('[data-library-panel="images"]');
+  var panels = root.querySelector('.library-panels');
+  var folderGrid = folderPanel ? folderPanel.querySelector('[data-library-grid]') : null;
+  var imageGrid = imagePanel ? imagePanel.querySelector('[data-library-grid]') : null;
+  var folderCards = Array.prototype.slice.call(root.querySelectorAll('[data-library-card]'));
+  var imageCards = Array.prototype.slice.call(root.querySelectorAll('[data-library-image]'));
+  var folderEmpty = root.querySelector('[data-library-empty="folders"]');
+  var menuDetails = Array.prototype.slice.call(root.querySelectorAll('details.library-menu'));
+
+  var state = {
+    tab: root.getAttribute('data-initial-tab') || 'suggested',
+    filter: 'all',
+    sort: 'suggested',
+    view: 'grid'
+  };
+
+  var favoriteSet = {};
+  try {
+    var storedView = window.localStorage.getItem('techfix.library.view');
+    if (storedView === 'list' || storedView === 'grid') state.view = storedView;
+    var storedFavorites = JSON.parse(window.localStorage.getItem('techfix.library.favorites') || '[]');
+    if (Array.isArray(storedFavorites)) {
+      storedFavorites.forEach(function (name) {
+        if (typeof name === 'string' && name) favoriteSet[name] = true;
+      });
+    }
+  } catch (error) {}
+
+  function saveFavorites() {
+    try {
+      window.localStorage.setItem('techfix.library.favorites', JSON.stringify(Object.keys(favoriteSet)));
+    } catch (error) {}
+  }
+
+  function applyFavoriteState() {
+    folderCards.forEach(function (card) {
+      var button = card.querySelector('[data-library-favorite]');
+      if (!button) return;
+      var name = button.getAttribute('data-library-favorite');
+      var active = !!favoriteSet[name];
+      card.setAttribute('data-favorite', active ? '1' : '0');
+      button.setAttribute('aria-pressed', active ? 'true' : 'false');
+      button.setAttribute('title', active ? 'Remove ' + name + ' from favorites' : 'Favorite ' + name);
+      var icon = button.querySelector('i');
+      if (icon) {
+        icon.classList.toggle('fa-solid', active);
+        icon.classList.toggle('fa-regular', !active);
+      }
+    });
+  }
+
+  function cardMatchesFilter(card) {
+    if (state.filter === 'all') return true;
+    return parseInt(card.getAttribute('data-' + state.filter), 10) > 0;
+  }
+
+  function cardMatchesTab(card) {
+    if (state.tab === 'favorites') return card.getAttribute('data-favorite') === '1';
+    return true;
+  }
+
+  function compareCards(a, b) {
+    var aName = a.getAttribute('data-name') || '';
+    var bName = b.getAttribute('data-name') || '';
+    var aOrder = parseInt(a.getAttribute('data-order'), 10) || 0;
+    var bOrder = parseInt(b.getAttribute('data-order'), 10) || 0;
+    var aCount = parseInt(a.getAttribute('data-count'), 10) || 0;
+    var bCount = parseInt(b.getAttribute('data-count'), 10) || 0;
+    if (state.sort === 'name-asc') return aName.localeCompare(bName);
+    if (state.sort === 'name-desc') return bName.localeCompare(aName);
+    if (state.sort === 'most') return bCount - aCount || aName.localeCompare(bName);
+    if (state.sort === 'fewest') return aCount - bCount || aName.localeCompare(bName);
+    return aOrder - bOrder;
+  }
+
+  function sortGrid(grid, cards) {
+    if (!grid) return;
+    cards.slice().sort(compareCards).forEach(function (card) {
+      grid.appendChild(card);
+    });
+  }
+
+  function updateActive(buttons, attribute, value) {
+    buttons.forEach(function (button) {
+      var active = button.getAttribute(attribute) === value;
+      button.classList.toggle('is-active', active);
+      if (button.hasAttribute('aria-pressed')) {
+        button.setAttribute('aria-pressed', active ? 'true' : 'false');
+      }
+    });
+  }
+
+  function setEmptyMessage() {
+    if (!folderEmpty) return;
+    var title = folderEmpty.querySelector('[data-library-empty-title]');
+    var text = folderEmpty.querySelector('[data-library-empty-text]');
+    if (!title || !text) return;
+    if (state.tab === 'favorites') {
+      title.textContent = 'No favorites yet';
+      text.textContent = 'Hover a folder and tap the star to save it here.';
+      return;
+    }
+    if (state.filter !== 'all') {
+      title.textContent = 'No folders match this filter';
+      text.textContent = 'Try a different filter or show all folders.';
+      return;
+    }
+    var query = root.getAttribute('data-query') || '';
+    if (query) {
+      title.textContent = 'No folders match "' + query + '"';
+      text.textContent = 'Try a different search.';
+      return;
+    }
+    title.textContent = 'No brand folders yet';
+    text.textContent = 'Folders appear automatically when products or accessories are added.';
+  }
+
+  function closeMenus(except) {
+    menuDetails.forEach(function (details) {
+      if (details !== except) details.open = false;
+    });
+  }
+
+  function render() {
+    tabs.forEach(function (tab) {
+      var active = tab.getAttribute('data-library-tab') === state.tab;
+      tab.classList.toggle('is-active', active);
+      tab.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+
+    var showFolders = state.tab === 'suggested' || state.tab === 'favorites' || state.tab === 'folders' || state.tab === 'all';
+    var showImages = state.tab === 'images' || state.tab === 'all';
+    if (folderPanel) folderPanel.hidden = !showFolders;
+    if (imagePanel) imagePanel.hidden = !showImages;
+    if (panels) panels.classList.toggle('is-all', state.tab === 'all');
+
+    var visibleFolders = 0;
+    folderCards.forEach(function (card) {
+      var visible = cardMatchesTab(card) && cardMatchesFilter(card);
+      card.hidden = !visible;
+      if (visible) visibleFolders += 1;
+    });
+    if (folderEmpty) folderEmpty.hidden = visibleFolders !== 0;
+    setEmptyMessage();
+
+    sortGrid(folderGrid, folderCards);
+    sortGrid(imageGrid, imageCards);
+    if (folderGrid) folderGrid.setAttribute('data-view', state.view);
+    if (imageGrid) imageGrid.setAttribute('data-view', state.view);
+    updateActive(filterButtons, 'data-library-filter', state.filter);
+    updateActive(sortButtons, 'data-library-sort', state.sort);
+    updateActive(viewButtons, 'data-library-view', state.view);
+  }
+
+  tabs.forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      state.tab = tab.getAttribute('data-library-tab');
+      render();
+    });
+  });
+
+  filterButtons.forEach(function (button) {
+    button.addEventListener('click', function () {
+      state.filter = button.getAttribute('data-library-filter');
+      if (state.tab === 'images') state.tab = 'folders';
+      closeMenus();
+      render();
+    });
+  });
+
+  sortButtons.forEach(function (button) {
+    button.addEventListener('click', function () {
+      state.sort = button.getAttribute('data-library-sort');
+      closeMenus();
+      render();
+    });
+  });
+
+  viewButtons.forEach(function (button) {
+    button.addEventListener('click', function () {
+      state.view = button.getAttribute('data-library-view');
+      try {
+        window.localStorage.setItem('techfix.library.view', state.view);
+      } catch (error) {}
+      render();
+    });
+  });
+
+  folderCards.forEach(function (card) {
+    var button = card.querySelector('[data-library-favorite]');
+    if (!button) return;
+    button.addEventListener('click', function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      var name = button.getAttribute('data-library-favorite');
+      if (favoriteSet[name]) {
+        delete favoriteSet[name];
+      } else {
+        favoriteSet[name] = true;
+      }
+      saveFavorites();
+      applyFavoriteState();
+      render();
+    });
+  });
+
+  root.querySelectorAll('[data-library-reset]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      state.filter = 'all';
+      state.tab = 'suggested';
+      state.sort = 'suggested';
+      render();
+    });
+  });
+
+  menuDetails.forEach(function (details) {
+    details.addEventListener('toggle', function () {
+      if (details.open) closeMenus(details);
+    });
+  });
+
+  document.addEventListener('click', function (event) {
+    if (!event.target.closest('.library-menu')) closeMenus();
+  });
+
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') closeMenus();
+  });
+
+  applyFavoriteState();
+  render();
+})();
+</script>
 {% endblock %}

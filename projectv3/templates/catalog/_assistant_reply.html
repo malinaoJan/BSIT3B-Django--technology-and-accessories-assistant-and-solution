@@ -1,0 +1,90 @@
+<div class="assistant-reply">
+  <div class="assistant-avatar"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+  <div class="assistant-reply-body">
+    <div class="assistant-reply-head">
+      <span class="assistant-name">TechFix Assistant</span>
+      <span class="assistant-badge{% if answer.ai %} assistant-badge-ai{% endif %}">
+        {% if answer.ai %}<i class="fa-solid fa-wand-magic-sparkles"></i>{% endif %}
+        {{ answer.badge|default:"Answer" }}
+      </span>
+    </div>
+
+    {% if answer.notice %}
+    <div class="assistant-notice"><i class="fa-solid fa-circle-info"></i><span>{{ answer.notice }}</span></div>
+    {% endif %}
+
+    {% if answer.title and answer.kind != 'clarify' %}
+    <p class="assistant-guide-title">
+      <i class="fa-solid {% if answer.kind == 'product' %}fa-box-open{% elif answer.kind == 'accessory' %}fa-plug{% elif answer.kind == 'solution' %}fa-screwdriver-wrench{% else %}fa-lightbulb{% endif %}"></i>
+      {{ answer.title }}
+    </p>
+    {% endif %}
+
+    <p class="assistant-text">{{ answer.summary }}</p>
+
+    {% if answer.first_step %}
+    <p class="assistant-text"><strong>Recommended fix:</strong> {{ answer.first_step }}</p>
+    {% endif %}
+
+    {% if answer.steps %}
+    <div class="assistant-steps-box">
+      <div class="assistant-steps-head"><i class="fa-solid fa-list-check"></i> {{ answer.steps_title|default:"Step-by-step process" }}</div>
+      <ol class="assistant-steps">
+        {% for step in answer.steps %}<li>{{ step }}</li>{% endfor %}
+      </ol>
+    </div>
+    {% endif %}
+
+    {% if answer.safety %}
+    <div class="assistant-safety"><i class="fa-solid fa-triangle-exclamation"></i><span>{{ answer.safety }}</span></div>
+    {% endif %}
+
+    {% if answer.kind == 'solution' %}
+    <div class="assistant-meta">
+      {% if answer.difficulty %}
+      <span class="badge {% if answer.difficulty == 'Easy' %}techfix-badge-easy{% elif answer.difficulty == 'Medium' %}techfix-badge-medium{% else %}techfix-badge-hard{% endif %}">{{ answer.difficulty }}</span>
+      {% endif %}
+      {% if answer.category %}<span class="badge techfix-badge-ghost">{{ answer.category }}</span>{% endif %}
+      {% if answer.product %}<span class="badge bg-primary">{{ answer.product.name }}</span>{% endif %}
+      {% if answer.video_url %}<a href="{{ answer.video_url }}" target="_blank" rel="noopener" class="badge techfix-badge-outline text-decoration-none"><i class="fa-brands fa-youtube me-1"></i>Video guide</a>{% endif %}
+    </div>
+    <div class="assistant-actions">
+      {% if answer.product %}<a href="{% url 'product_detail' answer.product.id %}" class="btn btn-outline-primary">View device</a>{% endif %}
+      <a href="{% url 'solution_list' %}" class="btn btn-outline-primary">Browse repair guides</a>
+    </div>
+    {% endif %}
+
+    {% if answer.kind == 'product' and answer.product %}
+    <div class="assistant-specs">
+      {% if answer.product.brand %}<span class="assistant-spec"><b>Brand</b> {{ answer.product.brand }}</span>{% endif %}
+      {% if answer.product.category %}<span class="assistant-spec"><b>Category</b> {{ answer.product.category }}</span>{% endif %}
+      <span class="assistant-spec"><b>Price</b> ${{ answer.product.price|floatformat:2 }}</span>
+      {% if answer.product.stock %}<span class="assistant-spec"><b>Stock</b> {{ answer.product.stock }} available</span>{% else %}<span class="assistant-spec"><b>Stock</b> Out of stock</span>{% endif %}
+    </div>
+    {% if answer.product.specs %}
+    <ul class="assistant-spec-list">
+      {% for spec in answer.product.specs %}<li>{{ spec }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+    <div class="assistant-actions"><a href="{% url 'product_detail' answer.product.id %}" class="btn btn-outline-primary">View product</a></div>
+    {% endif %}
+
+    {% if answer.kind == 'accessory' and answer.accessory %}
+    <div class="assistant-specs">
+      {% if answer.accessory.brand %}<span class="assistant-spec"><b>Brand</b> {{ answer.accessory.brand }}</span>{% endif %}
+      {% if answer.accessory.category %}<span class="assistant-spec"><b>Category</b> {{ answer.accessory.category }}</span>{% endif %}
+      <span class="assistant-spec"><b>Price</b> ${{ answer.accessory.price|floatformat:2 }}</span>
+      {% if answer.accessory.stock %}<span class="assistant-spec"><b>Stock</b> {{ answer.accessory.stock }} available</span>{% else %}<span class="assistant-spec"><b>Stock</b> Out of stock</span>{% endif %}
+    </div>
+    {% if answer.accessory.compatibility %}<p class="assistant-text"><strong>Compatibility:</strong> {{ answer.accessory.compatibility }}</p>{% endif %}
+    <div class="assistant-actions"><a href="{% url 'accessory_detail' answer.accessory.id %}" class="btn btn-outline-primary">View accessory</a></div>
+    {% endif %}
+
+    {% if answer.suggestions %}
+    <div class="assistant-suggestions">
+      <span>Try asking:</span>
+      {% for suggestion in answer.suggestions %}<a href="?q={{ suggestion|urlencode }}#techfix" data-chat-prompt="{{ suggestion }}">{{ suggestion }}</a>{% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</div>

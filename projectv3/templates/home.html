@@ -1,18 +1,19 @@
 {% extends "theme/base.html" %}
-{% load brand_logos %}
 {% block title %}TechFix{% endblock %}
+{% block body_class %}{% if chat_messages %}chat-active{% endif %}{% endblock %}
 {% block content %}
 <div class="chat-home">
   <h1 class="chat-greeting">Ready when you are.</h1>
 
-  <form method="get" action="{% url 'dashboard' %}#techfix" class="chat-composer" id="techfix-search-form">
+  <form method="get" action="{% url 'dashboard' %}#techfix" class="chat-composer" id="techfix-search-form"
+        data-chat-url="{% url 'assistant_chat' %}" data-csrf-token="{{ csrf_token }}">
     <div class="composer-main">
       <button type="button" class="composer-plus" title="Add attachment" aria-label="Add attachment">
         <i class="fa-solid fa-plus"></i>
       </button>
-      <input type="search" name="q" id="techfix-search-input" value="{{ search_query }}"
+      <input type="search" name="q" id="techfix-search-input" value="" maxlength="1000"
              class="composer-input" placeholder="Ask TechFix" autocomplete="off"
-             aria-label="Ask TechFix" data-dashboard-url="{% url 'dashboard' %}">
+             enterkeyhint="send" aria-label="Ask TechFix">
     </div>
     <div class="composer-bottom">
       <button type="button" class="think-toggle" id="thinkToggle" aria-pressed="false">
@@ -30,13 +31,13 @@
     </div>
   </form>
 
-  {% if not search_query %}
+  {% if not chat_messages %}
   <div class="gpt-promo">
     <div class="gpt-promo-copy">
       <span class="promo-eyebrow"><i class="fa-solid fa-wand-magic-sparkles"></i> TechFix AI with Intelligent UI</span>
       <p class="promo-title">Answers you can see and play with.</p>
       <p class="promo-text">Get visual and interactive answers to help you take the next step</p>
-      <a href="#techfix" class="promo-btn">Try TechFix AI <i class="fa-solid fa-arrow-right"></i></a>
+      <a href="#techfix-search-form" class="promo-btn">Try TechFix AI <i class="fa-solid fa-arrow-right"></i></a>
     </div>
     <div class="pitch-board" aria-hidden="true">
       <svg viewBox="0 0 320 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Football tactical board">
@@ -116,247 +117,50 @@
 </div>
 
 <div class="explore-catalog" id="techfix">
-  {% if search_query and assistant_answer %}
-  <div class="assistant-thread">
-    <div class="assistant-ask">
-      <div class="assistant-ask-avatar">{% if request.user.get_full_name %}{{ request.user.first_name|first|upper }}{{ request.user.last_name|first|upper }}{% else %}{{ request.user.username|first|upper }}{% endif %}</div>
-      <div class="assistant-ask-bubble">{{ search_query }}</div>
-    </div>
-    <div class="assistant-reply">
-      <div class="assistant-avatar"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
-      <div class="assistant-reply-body">
-        <div class="assistant-reply-head">
-          <span class="assistant-name">TechFix Assistant</span>
-          <span class="assistant-badge{% if assistant_answer.ai %} assistant-badge-ai{% endif %}">
-            {% if assistant_answer.ai %}<i class="fa-solid fa-wand-magic-sparkles"></i>{% endif %}
-            {{ assistant_answer.badge|default:"Answer" }}
-          </span>
-        </div>
-
-        {% if assistant_answer.title and assistant_answer.kind != 'clarify' and assistant_answer.kind != 'fallback' %}
-        <p class="assistant-guide-title">
-          <i class="fa-solid {% if assistant_answer.kind == 'product' %}fa-box-open{% elif assistant_answer.kind == 'accessory' %}fa-plug{% else %}fa-screwdriver-wrench{% endif %}"></i>
-          {{ assistant_answer.title }}
-        </p>
-        {% endif %}
-
-        <p class="assistant-text">{{ assistant_answer.summary }}</p>
-
-        {% if assistant_answer.first_step %}
-        <p class="assistant-text"><strong>Recommended fix:</strong> {{ assistant_answer.first_step }}</p>
-        {% endif %}
-
-        {% if assistant_answer.steps %}
-        <div class="assistant-steps-box">
-          <div class="assistant-steps-head"><i class="fa-solid fa-list-check"></i> {{ assistant_answer.steps_title|default:"Step-by-step process" }}</div>
-          <ol class="assistant-steps">
-            {% for step in assistant_answer.steps %}<li>{{ step }}</li>{% endfor %}
-          </ol>
-        </div>
-        {% endif %}
-
-        {% if assistant_answer.safety %}
-        <div class="assistant-safety"><i class="fa-solid fa-triangle-exclamation"></i><span>{{ assistant_answer.safety }}</span></div>
-        {% endif %}
-
-        {% if assistant_answer.kind == 'solution' %}
-        <div class="assistant-meta">
-          {% if assistant_answer.difficulty %}
-          <span class="badge {% if assistant_answer.difficulty == 'Easy' %}techfix-badge-easy{% elif assistant_answer.difficulty == 'Medium' %}techfix-badge-medium{% else %}techfix-badge-hard{% endif %}">{{ assistant_answer.difficulty }}</span>
-          {% endif %}
-          {% if assistant_answer.category %}<span class="badge techfix-badge-ghost">{{ assistant_answer.category }}</span>{% endif %}
-          {% if assistant_answer.product %}<span class="badge bg-primary">{{ assistant_answer.product.name }}</span>{% endif %}
-          {% if assistant_answer.video_url %}<a href="{{ assistant_answer.video_url }}" target="_blank" rel="noopener" class="badge techfix-badge-outline text-decoration-none"><i class="fa-brands fa-youtube me-1"></i>Video guide</a>{% endif %}
-        </div>
-        <div class="assistant-actions">
-          {% if assistant_answer.product %}<a href="{% url 'product_detail' assistant_answer.product.pk %}" class="btn btn-outline-primary">View device</a>{% endif %}
-          <a href="{% url 'solution_list' %}" class="btn btn-outline-primary">Browse repair guides</a>
-        </div>
-        {% endif %}
-
-        {% if assistant_answer.kind == 'product' and assistant_answer.product %}
-        <div class="assistant-specs">
-          {% if assistant_answer.product.brand %}<span class="assistant-spec"><b>Brand</b> {{ assistant_answer.product.brand }}</span>{% endif %}
-          {% if assistant_answer.product.category %}<span class="assistant-spec"><b>Category</b> {{ assistant_answer.product.category.name }}</span>{% endif %}
-          <span class="assistant-spec"><b>Price</b> ${{ assistant_answer.product.price|floatformat:2 }}</span>
-          {% if assistant_answer.product.stock_quantity %}<span class="assistant-spec"><b>Stock</b> {{ assistant_answer.product.stock_quantity }} available</span>{% else %}<span class="assistant-spec"><b>Stock</b> Out of stock</span>{% endif %}
-        </div>
-        {% if assistant_answer.product.spec_list %}
-        <ul class="assistant-spec-list">
-          {% for spec in assistant_answer.product.spec_list %}<li>{{ spec }}</li>{% endfor %}
-        </ul>
-        {% endif %}
-        <div class="assistant-actions"><a href="{% url 'product_detail' assistant_answer.product.pk %}" class="btn btn-outline-primary">View product</a></div>
-        {% endif %}
-
-        {% if assistant_answer.kind == 'accessory' and assistant_answer.accessory %}
-        <div class="assistant-specs">
-          {% if assistant_answer.accessory.brand %}<span class="assistant-spec"><b>Brand</b> {{ assistant_answer.accessory.brand }}</span>{% endif %}
-          {% if assistant_answer.accessory.category %}<span class="assistant-spec"><b>Category</b> {{ assistant_answer.accessory.category.name }}</span>{% endif %}
-          <span class="assistant-spec"><b>Price</b> ${{ assistant_answer.accessory.price|floatformat:2 }}</span>
-          {% if assistant_answer.accessory.stock_quantity %}<span class="assistant-spec"><b>Stock</b> {{ assistant_answer.accessory.stock_quantity }} available</span>{% else %}<span class="assistant-spec"><b>Stock</b> Out of stock</span>{% endif %}
-        </div>
-        {% if assistant_answer.accessory.compatibility_notes %}<p class="assistant-text"><strong>Compatibility:</strong> {{ assistant_answer.accessory.compatibility_notes }}</p>{% endif %}
-        <div class="assistant-actions"><a href="{% url 'accessory_detail' assistant_answer.accessory.pk %}" class="btn btn-outline-primary">View accessory</a></div>
-        {% endif %}
-
-        {% if assistant_answer.suggestions %}
-        <div class="assistant-suggestions">
-          <span>Try asking:</span>
-          {% for suggestion in assistant_answer.suggestions %}<a href="?q={{ suggestion|urlencode }}#techfix">{{ suggestion }}</a>{% endfor %}
-        </div>
-        {% endif %}
-      </div>
-    </div>
-  </div>
-  {% endif %}
-  <div class="explore-head">
-    {% if search_query %}
-    <h2>Results for &ldquo;{{ search_query }}&rdquo;</h2>
-    <p>{{ product_result_count }} product{{ product_result_count|pluralize }} &middot; {{ accessory_result_count }} accessor{{ accessory_result_count|pluralize:"y,ies" }} &middot; {{ solution_result_count }} solution{{ solution_result_count|pluralize }}</p>
-    <a href="{% url 'dashboard' %}" class="clear-search"><i class="fa-solid fa-xmark"></i> Clear search</a>
-    {% else %}
-    <h2>Explore TechFix</h2>
-    <p>Products, accessories and repair guides from the Technology and Accessories Assistant.</p>
-    {% endif %}
+  <div class="chat-thread" id="chat-thread" aria-live="polite" aria-relevant="additions">
+    {% for message in chat_messages %}
+      {% include "catalog/_chat_message.html" with message=message %}
+    {% endfor %}
   </div>
 
-  {% if not search_query and brands_preview %}
-  <section class="catalog-block">
-    <div class="catalog-block-head">
-      <h3><i class="fa-solid fa-folder-open"></i> Brand folders</h3>
-      <div class="meta">
-        <span>{{ brands|length }} folder{{ brands|length|pluralize }}</span>
-        <a href="{% url 'brand_list' %}" class="btn btn-outline-primary">View all <i class="fa-solid fa-arrow-right ms-1"></i></a>
+  <template id="chat-user-template">
+    <div class="assistant-thread assistant-thread-ask">
+      <div class="assistant-ask">
+        <div class="assistant-ask-avatar">{% if request.user.get_full_name %}{{ request.user.first_name|first|upper }}{{ request.user.last_name|first|upper }}{% else %}{{ request.user.username|first|upper }}{% endif %}</div>
+        <div class="assistant-ask-bubble" data-chat-bubble></div>
       </div>
     </div>
-    <div class="row g-3">
-      {% for folder in brands_preview %}
-      <div class="col-sm-6 col-lg-4">
-        <a href="{% url 'brand_detail' folder.name %}" class="brand-folder brand-folder-compact">
-          <div class="brand-cover {{ folder.accent }}">
-            {% with logo=folder.name|brand_logo %}
-            {% if logo %}<span class="brand-logo"><img src="{{ logo }}" alt="{{ folder.name }} logo" loading="lazy"></span>{% else %}<span class="brand-mono">{{ folder.name|first|upper }}</span>{% endif %}
-            {% endwith %}
-            <i class="fa-solid fa-folder-open brand-ghost"></i>
-          </div>
-          <div class="brand-body">
-            <div class="brand-name">{{ folder.name }}</div>
-            <div class="brand-sub">Brand folder</div>
-            <div class="brand-stats">
-              <div class="brand-stat"><i class="fa-solid fa-laptop"></i><b>{{ folder.product_count }}</b><span>Products</span></div>
-              <div class="brand-stat"><i class="fa-solid fa-headphones"></i><b>{{ folder.accessory_count }}</b><span>Access.</span></div>
-              <div class="brand-stat"><i class="fa-solid fa-screwdriver-wrench"></i><b>{{ folder.solution_count }}</b><span>Solutions</span></div>
-            </div>
-          </div>
-        </a>
-      </div>
-      {% endfor %}
-    </div>
-  </section>
-  {% endif %}
+  </template>
 
-  {% if not search_query or product_result_count %}
-  <section class="catalog-block">
-    <div class="catalog-block-head">
-      <h3><i class="fa-solid fa-laptop"></i> Products</h3>
-      <div class="meta">
-        <span>{% if search_query %}{{ product_result_count }} match{{ product_result_count|pluralize:"es" }}{% else %}{{ total_products }} in catalog{% endif %}</span>
-        <a href="{% url 'product_list' %}{% if search_query %}?q={{ search_query|urlencode }}{% endif %}" class="btn btn-outline-primary">View all <i class="fa-solid fa-arrow-right ms-1"></i></a>
-      </div>
-    </div>
-    <div class="row g-3">
-      {% for product in products %}
-      <div class="col-sm-6 col-lg-4">{% include "catalog/_product_card.html" %}</div>
-      {% empty %}
-      <div class="col-12">
-        <div class="empty">
-          <div class="empty-icon"><i class="fa-solid fa-{% if search_query %}magnifying-glass{% else %}laptop{% endif %}"></i></div>
-          {% if search_query %}
-          <p class="empty-title">No product matches</p>
-          <p class="empty-subtitle">Try another keyword, or browse all products.</p>
-          {% else %}
-          <p class="empty-title">No products yet</p>
-          <p class="empty-subtitle">{% if request.user.is_superuser %}Add products in Django Admin to populate the catalog.{% else %}Products will appear here once they are added.{% endif %}</p>
-          {% endif %}
-        </div>
-      </div>
-      {% endfor %}
-    </div>
-  </section>
-  {% endif %}
-
-  {% if not search_query or accessory_result_count %}
-  <section class="catalog-block">
-    <div class="catalog-block-head">
-      <h3><i class="fa-solid fa-headphones"></i> Accessories</h3>
-      <div class="meta">
-        <span>{% if search_query %}{{ accessory_result_count }} match{{ accessory_result_count|pluralize:"es" }}{% else %}{{ total_accessories }} in catalog{% endif %}</span>
-        <a href="{% url 'accessory_list' %}{% if search_query %}?q={{ search_query|urlencode }}{% endif %}" class="btn btn-outline-primary">View all <i class="fa-solid fa-arrow-right ms-1"></i></a>
-      </div>
-    </div>
-    <div class="row g-3">
-      {% for item in accessories %}
-      <div class="col-sm-6 col-lg-4">{% include "catalog/_accessory_card.html" %}</div>
-      {% empty %}
-      <div class="col-12">
-        <div class="empty">
-          <div class="empty-icon"><i class="fa-solid fa-{% if search_query %}magnifying-glass{% else %}headphones{% endif %}"></i></div>
-          {% if search_query %}
-          <p class="empty-title">No accessory matches</p>
-          <p class="empty-subtitle">Try another keyword, or browse all accessories.</p>
-          {% else %}
-          <p class="empty-title">No accessories yet</p>
-          <p class="empty-subtitle">{% if request.user.is_superuser %}Add accessories in Django Admin.{% else %}Accessories will appear here once they are added.{% endif %}</p>
-          {% endif %}
-        </div>
-      </div>
-      {% endfor %}
-    </div>
-  </section>
-  {% endif %}
-
-  {% if not search_query or solution_result_count %}
-  <section class="catalog-block">
-    <div class="catalog-block-head">
-      <h3><i class="fa-solid fa-screwdriver-wrench"></i> Solutions</h3>
-      <div class="meta">
-        <span>{% if search_query %}{{ solution_result_count }} match{{ solution_result_count|pluralize:"es" }}{% else %}{{ total_solutions }} guide{{ total_solutions|pluralize }}{% endif %}</span>
-        <a href="{% url 'solution_list' %}{% if search_query %}?q={{ search_query|urlencode }}{% endif %}" class="btn btn-outline-primary">View all <i class="fa-solid fa-arrow-right ms-1"></i></a>
-      </div>
-    </div>
-    <div class="card">
-      <div class="list-group list-group-flush">
-        {% for solution in solutions %}
-        <div class="list-group-item {% if solution.difficulty_level == 'Easy' %}sol-easy{% elif solution.difficulty_level == 'Medium' %}sol-medium{% else %}sol-hard{% endif %}">
-          <div class="fw-semibold">{{ solution.title }}</div>
-          <div class="text-muted mt-1" style="font-size:0.86rem;"><strong>Problem:</strong> {{ solution.problem_description|truncatewords:22 }}</div>
-          <div class="text-muted mt-1" style="font-size:0.86rem;"><strong>Fix:</strong> {{ solution.steps|truncatewords:26 }}</div>
-          <div class="mt-2 d-flex gap-1 flex-wrap">
-            <span class="badge {% if solution.difficulty_level == 'Easy' %}techfix-badge-easy{% elif solution.difficulty_level == 'Medium' %}techfix-badge-medium{% else %}techfix-badge-hard{% endif %}">{{ solution.difficulty_level }}</span>
-            {% if solution.category %}<span class="badge techfix-badge-ghost">{{ solution.category.name }}</span>{% endif %}
-            {% if solution.related_product %}<span class="badge bg-primary">{{ solution.related_product.name }}</span>{% endif %}
-            {% if solution.video_url %}<a href="{{ solution.video_url }}" target="_blank" rel="noopener" class="badge techfix-badge-outline text-decoration-none"><i class="fa-brands fa-youtube me-1"></i>Video guide</a>{% endif %}
+  <template id="chat-loading-template">
+    <div class="assistant-thread assistant-thread-loading" data-chat-loading>
+      <div class="assistant-reply">
+        <div class="assistant-avatar"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+        <div class="assistant-reply-body">
+          <div class="assistant-reply-head">
+            <span class="assistant-name">TechFix Assistant</span>
+            <span class="assistant-badge"><i class="fa-solid fa-spinner fa-spin"></i> Thinking</span>
           </div>
+          <p class="assistant-text assistant-typing">Checking the TechFix catalog and troubleshooting guides<span class="typing-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span></p>
         </div>
-        {% empty %}
-        <div class="list-group-item">
-          <div class="empty">
-            <div class="empty-icon"><i class="fa-solid fa-{% if search_query %}magnifying-glass{% else %}screwdriver-wrench{% endif %}"></i></div>
-            {% if search_query %}
-            <p class="empty-title">No solution matches</p>
-            <p class="empty-subtitle">Try another keyword, or browse all repair guides.</p>
-            {% else %}
-            <p class="empty-title">No solutions yet</p>
-            <p class="empty-subtitle">{% if request.user.is_superuser %}Add troubleshooting guides in Django Admin.{% else %}Solutions will appear here once they are added.{% endif %}</p>
-            {% endif %}
-          </div>
-        </div>
-        {% endfor %}
       </div>
     </div>
-  </section>
-  {% endif %}
+  </template>
+
+  <template id="chat-error-template">
+    <div class="assistant-thread assistant-thread-error" data-chat-error>
+      <div class="assistant-reply">
+        <div class="assistant-avatar"><i class="fa-solid fa-triangle-exclamation"></i></div>
+        <div class="assistant-reply-body">
+          <div class="assistant-reply-head">
+            <span class="assistant-name">TechFix Assistant</span>
+            <span class="assistant-badge">Connection issue</span>
+          </div>
+          <div class="assistant-error" data-chat-error-message></div>
+        </div>
+      </div>
+    </div>
+  </template>
 </div>
 {% endblock %}
 
@@ -366,30 +170,162 @@
   var form = document.getElementById('techfix-search-form');
   var input = document.getElementById('techfix-search-input');
   var think = document.getElementById('thinkToggle');
-  if (!form || !input) return;
-  var dashboardUrl = input.getAttribute('data-dashboard-url') || '{% url "dashboard" %}';
+  var thread = document.getElementById('chat-thread');
+  var userTemplate = document.getElementById('chat-user-template');
+  var loadingTemplate = document.getElementById('chat-loading-template');
+  var errorTemplate = document.getElementById('chat-error-template');
+  var promo = document.querySelector('.gpt-promo');
+  var promoButton = document.querySelector('.promo-btn');
+  if (!form || !input || !thread) return;
 
-  form.addEventListener('submit', function (e) {
-    if (!input.value.trim()) {
-      e.preventDefault();
-      window.location.href = dashboardUrl;
+  var chatUrl = form.getAttribute('data-chat-url');
+  var csrfToken = form.getAttribute('data-csrf-token') || '';
+  var submitButton = form.querySelector('.composer-send');
+  var sending = false;
+
+  function scrollToBottom(behavior) {
+    var last = thread.lastElementChild;
+    if (last && typeof last.scrollIntoView === 'function') {
+      last.scrollIntoView({ behavior: behavior || 'smooth', block: 'end' });
+    }
+  }
+
+  function appendFromTemplate(template) {
+    if (!template || !template.content) return null;
+    var fragment = template.content.cloneNode(true);
+    var node = fragment.firstElementChild;
+    thread.appendChild(fragment);
+    return node;
+  }
+
+  function appendUserMessage(message) {
+    var node = appendFromTemplate(userTemplate);
+    if (!node) return;
+    var bubble = node.querySelector('[data-chat-bubble]');
+    if (bubble) bubble.textContent = message;
+  }
+
+  function showLoading() {
+    var node = appendFromTemplate(loadingTemplate);
+    scrollToBottom();
+    return node;
+  }
+
+  function showError(message) {
+    var node = appendFromTemplate(errorTemplate);
+    if (node) {
+      var slot = node.querySelector('[data-chat-error-message]');
+      if (slot) slot.textContent = message;
+    }
+    scrollToBottom();
+  }
+
+  function removeNode(node) {
+    if (node && node.parentNode) node.parentNode.removeChild(node);
+  }
+
+  function setSending(value) {
+    sending = value;
+    if (submitButton) submitButton.disabled = value;
+    form.classList.toggle('is-sending', value);
+  }
+
+  function setChatActive() {
+    document.body.classList.add('chat-active');
+  }
+
+  function sendMessage(message) {
+    message = (message || '').trim();
+    if (!message || sending || !chatUrl) return;
+
+    setChatActive();
+    if (promo) promo.hidden = true;
+    appendUserMessage(message);
+    input.value = '';
+    setSending(true);
+    var loading = showLoading();
+    var controller = typeof AbortController === 'function' ? new AbortController() : null;
+    var timeoutId = controller
+      ? window.setTimeout(function () { controller.abort(); }, 45000)
+      : null;
+
+    fetch(chatUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken,
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: JSON.stringify({ message: message }),
+      signal: controller ? controller.signal : undefined
+    })
+      .then(function (response) {
+        if (response.status === 403) {
+          throw new Error('Your session expired. Refresh the page and sign in again.');
+        }
+        return response.json()
+          .catch(function () {
+            return { error: 'TechFix returned an unexpected response.' };
+          })
+          .then(function (data) {
+            if (!response.ok) {
+              throw new Error(data.error || 'TechFix could not answer that right now.');
+            }
+            return data;
+          });
+      })
+      .then(function (data) {
+        removeNode(loading);
+        if (!data.html || !data.html.trim()) {
+          throw new Error('TechFix returned an empty answer. Please try again.');
+        }
+        thread.insertAdjacentHTML('beforeend', data.html);
+        scrollToBottom();
+      })
+      .catch(function (error) {
+        removeNode(loading);
+        var message = error && error.message
+          ? error.message
+          : 'TechFix could not reach the server. Check your connection and try again.';
+        if (error && error.name === 'AbortError') {
+          message = 'TechFix took too long to answer. Please try again.';
+        } else if (error && error.name === 'TypeError') {
+          message = 'TechFix could not reach the server. Check your connection and try again.';
+        }
+        showError(message);
+      })
+      .finally(function () {
+        if (timeoutId) window.clearTimeout(timeoutId);
+        setSending(false);
+        input.focus();
+      });
+  }
+
+  form.addEventListener('submit', function (event) {
+    event.preventDefault();
+    if (sending) return;
+    sendMessage(input.value);
+  });
+
+  thread.addEventListener('click', function (event) {
+    var target = event.target;
+    if (!target || typeof target.closest !== 'function') return;
+    var link = target.closest('[data-chat-prompt]');
+    if (!link) return;
+    event.preventDefault();
+    if (sending) return;
+    input.value = link.getAttribute('data-chat-prompt') || '';
+    if (typeof form.requestSubmit === 'function') {
+      form.requestSubmit();
+    } else {
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     }
   });
 
-  input.addEventListener('search', function () {
-    if (!input.value) window.location.href = dashboardUrl;
-  });
-
-  input.addEventListener('input', function () {
-    if (!input.value && new URLSearchParams(window.location.search).has('q')) {
-      window.location.href = dashboardUrl;
-    }
-  });
-
-  input.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      window.location.href = dashboardUrl;
+  input.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      input.value = '';
     }
   });
 
@@ -397,6 +333,21 @@
     think.addEventListener('click', function () {
       var pressed = think.getAttribute('aria-pressed') === 'true';
       think.setAttribute('aria-pressed', pressed ? 'false' : 'true');
+    });
+  }
+
+  if (promoButton) {
+    promoButton.addEventListener('click', function (event) {
+      event.preventDefault();
+      input.focus();
+      form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }
+
+  if (thread.children.length) {
+    setChatActive();
+    window.requestAnimationFrame(function () {
+      scrollToBottom('auto');
     });
   }
 })();

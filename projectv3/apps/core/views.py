@@ -1,3 +1,6 @@
+import json
+import logging
+import re
 from datetime import datetime, timedelta
 
 from django.contrib import messages
@@ -7,13 +10,19 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.db.models import Q
+from django.http import JsonResponse
 from django.shortcuts import redirect, render
+from django.template.loader import render_to_string
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
+from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_http_methods, require_POST
 
 from .assistant import build_answer, search_terms
 from .gemini import enhance_answer
+
+logger = logging.getLogger(__name__)
 
 User = get_user_model()
 
@@ -235,83 +244,225 @@ def _new_first(qs, legacy_names):
     ).order_by('_legacy', '-created_at')
 
 
+CHAT_SESSION_KEY = 'techfix_chat_messages'
+MAX_CHAT_MESSAGES = 20
+MAX_CHAT_QUESTION_LENGTH = 1000
+_FOLLOW_UP_PRONOUNS = frozenset({
+    'it', 'its', 'this', 'that', 'these', 'those', 'they', 'them', 'their',
+    'same', 'also', 'still', 'again', 'another', 'both',
+})
+_FOLLOW_UP_STARTS = (
+    'and ', 'also ', 'what about', 'how about', 'what if', 'then ',
+    'can you', 'could you', 'would it', 'does it', 'is it',
+    'how much', 'how many',
+)
+
+
+def _serialize_product(product):
+    if product is None:
+        return None
+    return {
+        'id': product.pk,
+        'name': product.name,
+        'brand': product.brand,
+        'category': product.category.name if product.category else '',
+        'price': str(product.price),
+        'stock': product.stock_quantity,
+        'specs': product.spec_list,
+    }
+
+
+def _serialize_accessory(accessory):
+    if accessory is None:
+        return None
+    return {
+        'id': accessory.pk,
+        'name': accessory.name,
+        'brand': accessory.brand,
+        'category': accessory.category.name if accessory.category else '',
+        'price': str(accessory.price),
+        'stock': accessory.stock_quantity,
+        'compatibility': accessory.compatibility_notes,
+    }
+
+
+def _serialize_answer(answer):
+    return {
+        'kind': str(answer.get('kind') or ''),
+        'badge': str(answer.get('badge') or 'Answer'),
+        'title': str(answer.get('title') or ''),
+        'summary': str(answer.get('summary') or ''),
+        'first_step': str(answer.get('first_step') or ''),
+        'steps': [str(step) for step in (answer.get('steps') or [])],
+        'steps_title': str(answer.get('steps_title') or ''),
+        'difficulty': str(answer.get('difficulty') or ''),
+        'category': str(answer.get('category') or ''),
+        'product': _serialize_product(answer.get('product')),
+        'accessory': _serialize_accessory(answer.get('accessory')),
+        'video_url': str(answer.get('video_url') or ''),
+        'safety': str(answer.get('safety') or ''),
+        'suggestions': [
+            str(suggestion) for suggestion in (answer.get('suggestions') or [])
+        ],
+        'ai': bool(answer.get('ai')),
+        'notice': str(answer.get('notice') or ''),
+    }
+
+
+def _get_chat_history(request):
+    raw = request.session.get(CHAT_SESSION_KEY)
+    if not isinstance(raw, list):
+        return []
+    history = []
+    for item in raw[-MAX_CHAT_MESSAGES:]:
+        if not isinstance(item, dict):
+            continue
+        role = item.get('role')
+        if role == 'user':
+            text = item.get('text')
+            if isinstance(text, str) and text.strip():
+                history.append({
+                    'role': 'user',
+                    'text': text.strip()[:MAX_CHAT_QUESTION_LENGTH],
+                })
+        elif role == 'assistant':
+            answer = item.get('answer')
+            if isinstance(answer, dict):
+                history.append({'role': 'assistant', 'answer': answer})
+    return history
+
+
+def _save_chat_history(request, history):
+    request.session[CHAT_SESSION_KEY] = history[-MAX_CHAT_MESSAGES:]
+
+
+def _append_chat_turn(request, message, answer):
+    history = _get_chat_history(request)
+    history.append({'role': 'user', 'text': message})
+    history.append({'role': 'assistant', 'answer': answer})
+    _save_chat_history(request, history)
+
+
+def _context_query(message, history):
+    prior = [
+        item.get('text') for item in history
+        if item.get('role') == 'user' and item.get('text')
+    ]
+    if not prior:
+        return message
+    text = message.lower()
+    words = set(re.findall(r'[a-z0-9]+', text))
+    if words & _FOLLOW_UP_PRONOUNS or text.startswith(_FOLLOW_UP_STARTS):
+        return '%s %s' % (prior[-1], message)
+    return message
+
+
+def _create_chat_answer(message, history):
+    try:
+        local_answer = build_answer(_context_query(message, history))
+    except Exception:
+        logger.exception('Local assistant answer failed')
+        local_answer = None
+    return enhance_answer(message, local_answer, history=history)
+
+
+@never_cache
 @login_required(login_url='login')
 def home(request):
-    from apps.info.models import Info
+    if request.GET.get('new'):
+        request.session.pop(CHAT_SESSION_KEY, None)
+        return redirect('dashboard')
 
-    from .models import Accessory, Product, Solution
-
-    if request.user.is_superuser:
-        infos_qs = Info.objects.all()
-        total_users = User.objects.count()
-    else:
-        infos_qs = Info.objects.filter(user=request.user)
-        total_users = None
-
-    total_infos = infos_qs.count()
-    recent_infos = infos_qs.order_by('-created_at')[:5]
-
-    # Technology and Accessories Assistant and Solution data
-    search_query = request.GET.get('q', '').strip()
-    assistant_answer = None
-    if search_query:
-        assistant_answer = enhance_answer(search_query, build_answer(search_query))
-    product_result_count = accessory_result_count = solution_result_count = 0
-    if search_query and assistant_answer and assistant_answer.get('matches'):
-        matches = assistant_answer['matches']
-        products = matches['products'][:6]
-        accessories = matches['accessories'][:6]
-        solutions = matches['solutions'][:6]
-        product_result_count = len(matches['products'])
-        accessory_result_count = len(matches['accessories'])
-        solution_result_count = len(matches['solutions'])
-    elif search_query:
-        product_matches = _product_search(
-            Product.objects.select_related('category'), search_query
-        ).order_by('-created_at')
-        accessory_matches = _accessory_search(
-            Accessory.objects.select_related('category'), search_query
-        ).order_by('-created_at')
-        solution_matches = _solution_search(
-            Solution.objects.select_related('category', 'related_product'), search_query
-        ).order_by('-created_at')
-        product_result_count = product_matches.count()
-        accessory_result_count = accessory_matches.count()
-        solution_result_count = solution_matches.count()
-        products = product_matches[:6]
-        accessories = accessory_matches[:6]
-        solutions = solution_matches[:6]
-    else:
-        products = _new_first(
-            Product.objects.select_related('category').all(), _legacy_product_names()
-        )[:6]
-        accessories = _new_first(
-            Accessory.objects.select_related('category').all(), _legacy_accessory_names()
-        )[:6]
-        solutions = Solution.objects.select_related('category', 'related_product').all().order_by('-created_at')[:6]
+    legacy_query = (request.GET.get('q') or '').strip()
+    if legacy_query:
+        if len(legacy_query) <= MAX_CHAT_QUESTION_LENGTH:
+            history = _get_chat_history(request)
+            try:
+                answer = _create_chat_answer(legacy_query, history)
+            except Exception:
+                logger.exception('Legacy assistant chat failed')
+                answer = None
+            if answer:
+                _append_chat_turn(
+                    request, legacy_query, _serialize_answer(answer)
+                )
+        return redirect(reverse('dashboard') + '#techfix')
 
     return render(request, 'home.html', {
-        'total_users': total_users,
-        'total_infos': total_infos,
-        'recent_infos': recent_infos,
-        'products': products,
-        'accessories': accessories,
-        'solutions': solutions,
-        'total_products': Product.objects.count(),
-        'total_accessories': Accessory.objects.count(),
-        'total_solutions': Solution.objects.count(),
-        'search_query': search_query,
-        'assistant_answer': assistant_answer,
-        'product_result_count': product_result_count,
-        'accessory_result_count': accessory_result_count,
-        'solution_result_count': solution_result_count,
-        'brands': _get_brand_folders(),
-        'brands_preview': sorted(
-            _get_brand_folders(),
-            key=lambda f: f['product_count'] + f['accessory_count'] + f['solution_count'],
-            reverse=True,
-        )[:6],
+        'chat_messages': _get_chat_history(request),
     })
+
+
+@never_cache
+@login_required(login_url='login')
+def scheduled_assistant(request):
+    if request.GET.get('new'):
+        request.session.pop(CHAT_SESSION_KEY, None)
+        return redirect('scheduled_assistant')
+    return render(request, 'scheduled.html', {
+        'chat_messages': _get_chat_history(request),
+    })
+
+
+@require_POST
+@never_cache
+def assistant_chat(request):
+    if not request.user.is_authenticated:
+        return JsonResponse(
+            {'error': 'Your session expired. Refresh the page and sign in again.'},
+            status=401,
+        )
+    try:
+        payload = json.loads(request.body or b'{}')
+    except (TypeError, ValueError):
+        return JsonResponse({'error': 'Invalid chat request.'}, status=400)
+    if not isinstance(payload, dict):
+        return JsonResponse({'error': 'Invalid chat request.'}, status=400)
+
+    message = payload.get('message')
+    if not isinstance(message, str):
+        return JsonResponse({'error': 'Please type a message.'}, status=400)
+    message = message.strip()
+    if not message:
+        return JsonResponse({'error': 'Please type a message.'}, status=400)
+    if len(message) > MAX_CHAT_QUESTION_LENGTH:
+        return JsonResponse(
+            {'error': 'Please keep your question under 1,000 characters.'},
+            status=400,
+        )
+
+    history = _get_chat_history(request)
+    try:
+        answer = _create_chat_answer(message, history)
+    except Exception:
+        logger.exception('Assistant chat failed')
+        return JsonResponse(
+            {'error': 'TechFix could not answer that question right now. '
+                      'Please try again.'},
+            status=500,
+        )
+    if not answer:
+        return JsonResponse(
+            {'error': 'TechFix could not answer that question right now. '
+                      'Please try again.'},
+            status=502,
+        )
+
+    serialized = _serialize_answer(answer)
+    _append_chat_turn(request, message, serialized)
+    try:
+        html = render_to_string(
+            'catalog/_chat_message.html',
+            {'message': {'role': 'assistant', 'answer': serialized}},
+            request=request,
+        )
+    except Exception:
+        logger.exception('Assistant reply rendering failed')
+        return JsonResponse(
+            {'error': 'TechFix could not display that answer. Please try again.'},
+            status=500,
+        )
+    return JsonResponse({'html': html})
 
 
 def _get_all_brands():
@@ -352,6 +503,47 @@ def _get_brand_folders():
     return folders
 
 
+def _library_image_search(qs, query):
+    """Name, brand and category search for Library photos."""
+    return qs.filter(
+        _search_filter(query, ['name', 'brand', 'category__name'])
+    ).distinct()
+
+
+def _get_library_images(query=''):
+    """Recent product and accessory photos for the Library images view."""
+    from .models import Accessory, Product
+
+    products = Product.objects.exclude(image='').exclude(
+        image__isnull=True
+    ).select_related('category')
+    accessories = Accessory.objects.exclude(image='').exclude(
+        image__isnull=True
+    ).select_related('category')
+    if query:
+        products = _library_image_search(products, query)
+        accessories = _library_image_search(accessories, query)
+
+    items = []
+    for product in products.order_by('-created_at')[:12]:
+        items.append({
+            'name': product.name,
+            'brand': product.brand,
+            'kind': 'Product',
+            'image_url': product.image.url,
+            'url': reverse('product_detail', args=[product.pk]),
+        })
+    for accessory in accessories.order_by('-created_at')[:12]:
+        items.append({
+            'name': accessory.name,
+            'brand': accessory.brand,
+            'kind': 'Accessory',
+            'image_url': accessory.image.url,
+            'url': reverse('accessory_detail', args=[accessory.pk]),
+        })
+    return items
+
+
 def _canonical_brand(brand):
     """Return the stored casing of a brand (case-insensitive match), or None."""
     for name in _get_all_brands():
@@ -366,8 +558,13 @@ def brand_list(request):
     folders = _get_brand_folders()
     if query:
         folders = [f for f in folders if query.lower() in f['name'].lower()]
+    image_items = _get_library_images(query)
     return render(request, 'catalog/brands.html', {
-        'brands': folders, 'query': query, 'total': len(folders),
+        'brands': folders,
+        'query': query,
+        'total': len(folders),
+        'image_items': image_items,
+        'active_tab': 'all' if query else 'suggested',
     })
 
 

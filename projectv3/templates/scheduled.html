@@ -1,0 +1,333 @@
+{% extends "theme/base.html" %}
+{% block title %}Scheduled | TechFix{% endblock %}
+{% block body_class %}scheduled-assistant-page{% if chat_messages %} has-conversation{% endif %}{% endblock %}
+{% block content %}
+<div class="scheduled-shell" id="scheduledAssistant">
+  <header class="scheduled-head">
+    <h1 class="scheduled-title">TECHFIX AI Assistant</h1>
+    <p class="scheduled-subtitle">Your smart technology and accessories assistant</p>
+  </header>
+
+  <form method="get" action="{% url 'dashboard' %}" class="scheduled-composer" id="scheduledComposer"
+        data-chat-url="{% url 'assistant_chat' %}" data-csrf-token="{{ csrf_token }}">
+    <button type="button" class="scheduled-plus" id="scheduledPlus" title="Focus message" aria-label="Focus message">
+      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+    <input type="search" name="q" id="scheduledInput" class="scheduled-input" maxlength="1000"
+           placeholder="Ask about a technology problem, gadget, or solution..." autocomplete="off"
+           enterkeyhint="send" aria-label="Ask TechFix">
+    <button type="submit" class="scheduled-send" title="Send" aria-label="Send">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 18V6"/><path d="m7 11 5-5 5 5"/></svg>
+    </button>
+  </form>
+
+  <div class="scheduled-thread" id="scheduledThread" aria-live="polite" aria-relevant="additions">
+    {% for message in chat_messages %}
+      {% include "catalog/_chat_message.html" with message=message %}
+    {% endfor %}
+  </div>
+
+  <section class="scheduled-recommended" id="scheduledRecommended"{% if chat_messages %} hidden{% endif %}>
+    <h2 class="scheduled-recommended-title">Recommended</h2>
+    <div class="scheduled-actions">
+      <div class="scheduled-action">
+        <span class="scheduled-action-icon">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17l3 3 5.3-5.3a4 4 0 0 0 5.4-5.4l-2.2 2.2-2.8-2.8 2.2-2.2Z"/></svg>
+        </span>
+        <span class="scheduled-action-copy">
+          <span class="scheduled-action-title">Technology Troubleshooting</span>
+          <span class="scheduled-action-text">Find solutions to common device problems.</span>
+        </span>
+        <button type="button" class="scheduled-action-add" data-sa-prompt="Help me troubleshoot a technology problem." aria-label="Add Technology Troubleshooting prompt" title="Add prompt">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+      </div>
+
+      <div class="scheduled-action">
+        <span class="scheduled-action-icon">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="13" width="4" height="6" rx="2"/><rect x="17" y="13" width="4" height="6" rx="2"/></svg>
+        </span>
+        <span class="scheduled-action-copy">
+          <span class="scheduled-action-title">Find the Right Accessories</span>
+          <span class="scheduled-action-text">Discover accessories compatible with your device.</span>
+        </span>
+        <button type="button" class="scheduled-action-add" data-sa-prompt="Find accessories that are compatible with my device." aria-label="Add Find the Right Accessories prompt" title="Add prompt">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+      </div>
+
+      <div class="scheduled-action">
+        <span class="scheduled-action-icon">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="4" y="5" width="16" height="11" rx="2"/><path d="M2.5 19h19"/></svg>
+        </span>
+        <span class="scheduled-action-copy">
+          <span class="scheduled-action-title">Gadget Recommendations</span>
+          <span class="scheduled-action-text">Compare gadgets based on your needs and budget.</span>
+        </span>
+        <button type="button" class="scheduled-action-add" data-sa-prompt="Recommend a gadget based on my needs and budget." aria-label="Add Gadget Recommendations prompt" title="Add prompt">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+      </div>
+
+      <div class="scheduled-action">
+        <span class="scheduled-action-icon">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8"/><path d="m8.5 12 2.4 2.4 4.8-4.8"/></svg>
+        </span>
+        <span class="scheduled-action-copy">
+          <span class="scheduled-action-title">Device Compatibility</span>
+          <span class="scheduled-action-text">Check hardware and accessory compatibility.</span>
+        </span>
+        <button type="button" class="scheduled-action-add" data-sa-prompt="Check whether my hardware and accessories are compatible." aria-label="Add Device Compatibility prompt" title="Add prompt">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+      </div>
+
+      <div class="scheduled-action">
+        <span class="scheduled-action-icon">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4v-.2a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"/></svg>
+        </span>
+        <span class="scheduled-action-copy">
+          <span class="scheduled-action-title">Quick Tech Solutions</span>
+          <span class="scheduled-action-text">Get step-by-step technical assistance.</span>
+        </span>
+        <button type="button" class="scheduled-action-add" data-sa-prompt="Give me step-by-step technical assistance." aria-label="Add Quick Tech Solutions prompt" title="Add prompt">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <template id="scheduledUserTemplate">
+    <div class="assistant-thread assistant-thread-ask">
+      <div class="assistant-ask">
+        <div class="assistant-ask-avatar">{% if request.user.get_full_name %}{{ request.user.first_name|first|upper }}{{ request.user.last_name|first|upper }}{% else %}{{ request.user.username|first|upper }}{% endif %}</div>
+        <div class="assistant-ask-bubble" data-chat-bubble></div>
+      </div>
+    </div>
+  </template>
+
+  <template id="scheduledLoadingTemplate">
+    <div class="assistant-thread assistant-thread-loading" data-chat-loading>
+      <div class="assistant-reply">
+        <div class="assistant-avatar"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+        <div class="assistant-reply-body">
+          <div class="assistant-reply-head">
+            <span class="assistant-name">TechFix Assistant</span>
+            <span class="assistant-badge"><i class="fa-solid fa-spinner fa-spin"></i> Thinking</span>
+          </div>
+          <p class="assistant-text assistant-typing">Checking the TechFix catalog and troubleshooting guides<span class="typing-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span></p>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <template id="scheduledErrorTemplate">
+    <div class="assistant-thread assistant-thread-error" data-chat-error>
+      <div class="assistant-reply">
+        <div class="assistant-avatar"><i class="fa-solid fa-triangle-exclamation"></i></div>
+        <div class="assistant-reply-body">
+          <div class="assistant-reply-head">
+            <span class="assistant-name">TechFix Assistant</span>
+            <span class="assistant-badge">Connection issue</span>
+          </div>
+          <div class="assistant-error" data-chat-error-message></div>
+        </div>
+      </div>
+    </div>
+  </template>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var root = document.getElementById('scheduledAssistant');
+  var form = document.getElementById('scheduledComposer');
+  var input = document.getElementById('scheduledInput');
+  var thread = document.getElementById('scheduledThread');
+  var recommended = document.getElementById('scheduledRecommended');
+  var plus = document.getElementById('scheduledPlus');
+  var userTemplate = document.getElementById('scheduledUserTemplate');
+  var loadingTemplate = document.getElementById('scheduledLoadingTemplate');
+  var errorTemplate = document.getElementById('scheduledErrorTemplate');
+  if (!root || !form || !input || !thread) return;
+
+  var chatUrl = form.getAttribute('data-chat-url');
+  var csrfToken = form.getAttribute('data-csrf-token') || '';
+  var submitButton = form.querySelector('.scheduled-send');
+  var sending = false;
+
+  function scrollToBottom(behavior) {
+    var last = thread.lastElementChild;
+    if (last && typeof last.scrollIntoView === 'function') {
+      last.scrollIntoView({ behavior: behavior || 'smooth', block: 'end' });
+    }
+  }
+
+  function appendFromTemplate(template) {
+    if (!template || !template.content) return null;
+    var fragment = template.content.cloneNode(true);
+    var node = fragment.firstElementChild;
+    thread.appendChild(fragment);
+    return node;
+  }
+
+  function appendUserMessage(message) {
+    var node = appendFromTemplate(userTemplate);
+    if (!node) return;
+    var bubble = node.querySelector('[data-chat-bubble]');
+    if (bubble) bubble.textContent = message;
+  }
+
+  function showLoading() {
+    var node = appendFromTemplate(loadingTemplate);
+    scrollToBottom();
+    return node;
+  }
+
+  function showError(message) {
+    var node = appendFromTemplate(errorTemplate);
+    if (node) {
+      var slot = node.querySelector('[data-chat-error-message]');
+      if (slot) slot.textContent = message;
+    }
+    scrollToBottom();
+  }
+
+  function removeNode(node) {
+    if (node && node.parentNode) node.parentNode.removeChild(node);
+  }
+
+  function setSending(value) {
+    sending = value;
+    if (submitButton) submitButton.disabled = value;
+    form.classList.toggle('is-sending', value);
+  }
+
+  function setConversation() {
+    document.body.classList.add('has-conversation');
+    if (recommended) recommended.hidden = true;
+  }
+
+  function sendMessage(message) {
+    message = (message || '').trim();
+    if (!message || sending || !chatUrl) return;
+
+    setConversation();
+    appendUserMessage(message);
+    input.value = '';
+    setSending(true);
+    var loading = showLoading();
+    var controller = typeof AbortController === 'function' ? new AbortController() : null;
+    var timeoutId = controller
+      ? window.setTimeout(function () { controller.abort(); }, 45000)
+      : null;
+
+    fetch(chatUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken,
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: JSON.stringify({ message: message }),
+      signal: controller ? controller.signal : undefined
+    })
+      .then(function (response) {
+        if (response.status === 401 || response.status === 403) {
+          throw new Error('Your session expired. Refresh the page and sign in again.');
+        }
+        return response.json()
+          .catch(function () {
+            return { error: 'TechFix returned an unexpected response.' };
+          })
+          .then(function (data) {
+            if (!response.ok) {
+              throw new Error(data.error || 'TechFix could not answer that right now.');
+            }
+            return data;
+          });
+      })
+      .then(function (data) {
+        removeNode(loading);
+        if (!data.html || !data.html.trim()) {
+          throw new Error('TechFix returned an empty answer. Please try again.');
+        }
+        thread.insertAdjacentHTML('beforeend', data.html);
+        scrollToBottom();
+      })
+      .catch(function (error) {
+        removeNode(loading);
+        var message = error && error.message
+          ? error.message
+          : 'TechFix could not reach the server. Check your connection and try again.';
+        if (error && error.name === 'AbortError') {
+          message = 'TechFix took too long to answer. Please try again.';
+        } else if (error && error.name === 'TypeError') {
+          message = 'TechFix could not reach the server. Check your connection and try again.';
+        }
+        showError(message);
+      })
+      .finally(function () {
+        if (timeoutId) window.clearTimeout(timeoutId);
+        setSending(false);
+        input.focus();
+      });
+  }
+
+  form.addEventListener('submit', function (event) {
+    event.preventDefault();
+    if (sending) return;
+    sendMessage(input.value);
+  });
+
+  root.querySelectorAll('[data-sa-prompt]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      var prompt = button.getAttribute('data-sa-prompt') || '';
+      if (!prompt) return;
+      var current = input.value.trim();
+      input.value = current ? current + ' ' + prompt : prompt;
+      input.focus();
+      try {
+        input.setSelectionRange(input.value.length, input.value.length);
+      } catch (error) {}
+    });
+  });
+
+  thread.addEventListener('click', function (event) {
+    var target = event.target;
+    if (!target || typeof target.closest !== 'function') return;
+    var link = target.closest('[data-chat-prompt]');
+    if (!link) return;
+    event.preventDefault();
+    if (sending) return;
+    input.value = link.getAttribute('data-chat-prompt') || '';
+    if (typeof form.requestSubmit === 'function') {
+      form.requestSubmit();
+    } else {
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    }
+  });
+
+  if (plus) {
+    plus.addEventListener('click', function () {
+      input.focus();
+    });
+  }
+
+  input.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      input.value = '';
+    }
+  });
+
+  if (thread.children.length) {
+    setConversation();
+    window.requestAnimationFrame(function () {
+      scrollToBottom('auto');
+    });
+  }
+})();
+</script>
+{% endblock %}
