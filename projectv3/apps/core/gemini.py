@@ -13,21 +13,34 @@ logger = logging.getLogger(__name__)
 _API_ROOT = 'https://generativelanguage.googleapis.com/v1beta/models'
 
 _SYSTEM_PROMPT = (
-    'You are TechFix Assistant, the technology support assistant for TechFix. '
-    'Help only with technology topics: computers, phones, tablets, TVs, cameras, '
-    'printers, routers, audio gear, gaming devices, accessories, repairs, '
-    'troubleshooting, setup, compatibility and tech buying advice. If the request '
-    'is unrelated to technology, set is_tech to false and politely say you only '
-    'help with technology. Use the conversation history to understand follow-up '
-    'questions such as "it", "that device" or "what about the battery". When '
-    'TechFix catalog data is provided, treat it as the only source of product '
-    'specifications, compatibility and prices. Never invent or guess '
-    'specifications, model-specific compatibility, part numbers, stock or prices. '
-    'If the catalog does not contain a detail, say you do not have confirmed '
-    'information and give safe general guidance instead. Answer only about the '
-    'exact device, model or item named in the user question. Do not list or '
-    'discuss other devices or models unless the user explicitly asks for '
-    'alternatives. Do not claim to be ChatGPT or Gemini. Return valid JSON only.'
+    'You are TechFix Assistant, the intelligent technical support assistant for TechFix. '
+    'Your mission is to provide users with specific, accurate, and direct answers to any question '
+    'they ask in the chatbox.\n\n'
+    'You specialize in and should answer:\n'
+    '1. Device Troubleshooting & Repairs: For hardware and software issues with smartphones, '
+    'laptops, desktop PCs, tablets, TVs/monitors, printers, routers, audio devices, gaming consoles, '
+    'and accessories, explain the likely cause and provide concrete, actionable, numbered steps.\n'
+    '2. TechFix Catalog, Products & Pricing: When TechFix catalog data is provided, use it as the source '
+    'of truth for products, accessories, specs, stock, and prices. Quote exact prices and stock when asked.\n'
+    '3. TechFix Platform & Navigation: Explain TechFix features, such as browsing products, checking '
+    'accessory compatibility, viewing repair guides, and diagnosing tech problems.\n'
+    '4. General Technology Knowledge: Clearly explain tech concepts (e.g., SSD vs HDD, RAM, Wi-Fi 6, '
+    'OLED vs LCD, OS updates, maintenance, and cleaning).\n'
+    '5. Greetings & Support: Greet users warmly and explain how you can help them.\n\n'
+    'Guidelines for Answers:\n'
+    '- Always be direct, specific, and helpful. Address the user\'s question immediately.\n'
+    '- Never use generic disclaimer boilerplate like "Since I do not have specific information about '
+    'your device model, please note that this advice is general". Instead, give specific instructions and '
+    'mention model differences directly if relevant.\n'
+    '- For repair or troubleshooting questions, provide a clear explanation in summary, followed by '
+    '3-6 concrete numbered steps in the steps array.\n'
+    '- For informational, conceptual, price, or product questions where troubleshooting steps are not '
+    'needed, provide the complete specific answer in summary and leave steps empty ([]).\n'
+    '- Set is_tech to true for all technology, hardware, software, gadgets, repair, and TechFix questions. '
+    'Only set is_tech to false if the question is completely unrelated to technology or the TechFix system '
+    '(e.g., cooking recipes, creative writing, sports). For non-tech questions, politely explain that you '
+    'are dedicated to technology and device repair assistance.\n'
+    '- Always return valid JSON matching the schema.'
 )
 
 _RESPONSE_SCHEMA = {
@@ -110,28 +123,27 @@ def _build_prompt(question, sources, history_included=False):
             lines.append(_source_block(source, index))
             lines.append('')
         lines.append(
-            'Use the best matching catalog entry as the primary source. Answer '
-            'only about the exact device, model or item named in the user '
-            'question. Do not list, compare or mention other devices or models '
-            'unless the user explicitly asks for alternatives. Do not copy '
-            'unrelated model details.'
+            'When the question asks about products, pricing, stock, compatibility, or repair guides, '
+            'quote the relevant confirmed TechFix data accurately in your answer.'
         )
     else:
         lines.append(
-            'No matching catalog entry was found. Give safe, general '
-            'troubleshooting steps and state that the advice is general. Do not '
-            'guess TechFix product specs, compatibility, stock or prices.'
+            'Answer using your technical knowledge. Give a direct, specific, and actionable answer '
+            'to the user\'s question.'
         )
     lines.append('')
     lines.append(
-        'Return is_tech true only when the request is about technology, gadgets, '
-        'accessories or technical solutions. Otherwise set is_tech false, give a '
-        'short polite refusal in summary, and return an empty steps array. For '
-        'technology questions return a short title, a 1-3 sentence specific answer '
-        'in summary, 3-6 concrete ordered steps, a difficulty of Easy, Medium or '
-        'Hard, and a short safety note when needed. If the question only asks for '
-        'a price, specs, stock or availability, put the details in summary and '
-        'return an empty steps array instead of repair steps.'
+        'Format your response in JSON according to the schema:\n'
+        '- title: A concise, descriptive title for the answer.\n'
+        '- summary: The specific, direct answer to the user\'s question (1-3 clear paragraphs as needed).\n'
+        '- steps: If the question asks for a repair, fix, troubleshooting, or procedure, provide 3 to 6 '
+        'concrete, actionable numbered steps. If it is an informational, conceptual, or price question, '
+        'leave steps as an empty array [].\n'
+        '- difficulty: Easy, Medium, or Hard if steps are provided; otherwise omit or leave blank.\n'
+        '- safety: A short practical safety caution if handling electricity, batteries, or opened hardware; '
+        'otherwise leave blank.\n'
+        '- is_tech: true for all tech, electronics, repair, and TechFix platform questions; false only for '
+        'completely non-tech topics.'
     )
     return '\n'.join(lines)
 
@@ -281,36 +293,17 @@ def ask_gemini(question, sources, history=None):
         'contents': contents,
         'generationConfig': {
             'temperature': 0.25,
-            'maxOutputTokens': 900,
+            'maxOutputTokens': 1500,
             'responseMimeType': 'application/json',
             'responseSchema': _RESPONSE_SCHEMA,
         },
     }
 
     models = _model_candidates()
-    if not models:
-        return None
-    if len(models) == 1:
-        return _ask_model(models[0], key, payload)
-
-    executor = ThreadPoolExecutor(max_workers=len(models))
-    futures = [
-        executor.submit(_ask_model, model, key, payload)
-        for model in models
-    ]
-    try:
-        for future in as_completed(futures, timeout=30):
-            try:
-                result = future.result()
-            except Exception as exc:
-                logger.warning('Gemini worker failed: %s', exc)
-                continue
-            if result:
-                return result
-    except TimeoutError:
-        logger.warning('Gemini requests timed out')
-    finally:
-        executor.shutdown(wait=False, cancel_futures=True)
+    for model in models:
+        result = _ask_model(model, key, payload)
+        if result:
+            return result
     return None
 
 
@@ -359,12 +352,14 @@ def _merge_ai_answer(answer, data):
     merged['safety'] = data.get('safety') or merged.get('safety', '')
     if data.get('difficulty'):
         merged['difficulty'] = data['difficulty']
-    if data.get('title') and not merged.get('title'):
+    if data.get('title'):
         merged['title'] = data['title']
-    if merged.get('kind') == 'clarify':
-        merged['kind'] = 'fallback'
-        if data.get('title'):
-            merged['title'] = data['title']
+    elif not merged.get('title'):
+        merged['title'] = 'TechFix Support'
+
+    if merged.get('kind') in ('clarify', 'fallback'):
+        merged['kind'] = 'solution' if steps else 'answer'
+
     merged['ai'] = True
     merged['badge'] = (
         'AI repair answer'

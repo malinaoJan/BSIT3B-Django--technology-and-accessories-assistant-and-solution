@@ -46,12 +46,31 @@ class HomeViewTests(TestCase):
         self.assertContains(response, reverse('assistant_chat'))
         self.assertContains(response, 'data-csrf-token')
         self.assertContains(response, 'chat-thread')
+        self.assertContains(response, 'Scheduled')
         self.assertNotContains(response, '<body class="chat-active">')
 
-    def test_home_requires_login(self):
+    def test_guest_can_open_home_and_browse_links(self):
         response = self.client.get(reverse('dashboard'))
 
-        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse('assistant_chat'))
+        self.assertContains(response, 'id="appSidebar"')
+        self.assertContains(response, 'Guest')
+        self.assertContains(response, 'Create account')
+        self.assertContains(response, reverse('product_list'))
+        self.assertContains(response, reverse('accessory_list'))
+        self.assertNotContains(response, 'Scheduled')
+
+    def test_logout_returns_user_to_guest_dashboard(self):
+        user = get_user_model().objects.create_user(
+            username='logout-user', password='secret1234'
+        )
+        self.client.force_login(user)
+
+        response = self.client.post(reverse('logout'))
+
+        self.assertRedirects(response, reverse('dashboard'))
+        self.assertEqual(self.client.get(reverse('dashboard')).status_code, 200)
 
     def test_home_renders_existing_chat_history(self):
         user = get_user_model().objects.create_user(username='admin', password='secret1234')
@@ -213,6 +232,21 @@ class LibraryViewTests(TestCase):
             stock_quantity=1,
         )
 
+    def test_guest_can_browse_catalog_pages(self):
+        self.client.logout()
+        routes = (
+            reverse('product_list'),
+            reverse('product_detail', args=[Product.objects.first().pk]),
+            reverse('accessory_list'),
+            reverse('solution_list'),
+            reverse('brand_list'),
+            reverse('brand_detail', args=['TestBrand']),
+        )
+
+        for route in routes:
+            with self.subTest(route=route):
+                self.assertEqual(self.client.get(route).status_code, 200)
+
     def test_library_page_renders_new_layout(self):
         response = self.client.get(reverse('brand_list'))
 
@@ -280,13 +314,16 @@ class ChatEndpointTests(TestCase):
             content_type='application/json',
         )
 
-    def test_chat_requires_login(self):
+    @patch('apps.core.views.enhance_answer')
+    def test_guest_can_chat(self, mocked_enhance):
+        mocked_enhance.return_value = ai_answer()
         self.client.logout()
 
         response = self.post_message('My phone will not charge')
 
-        self.assertEqual(response.status_code, 401)
-        self.assertIn('error', response.json())
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('html', response.json())
+        self.assertEqual(len(self.client.session[CHAT_SESSION_KEY]), 2)
 
     def test_chat_rejects_empty_message(self):
         response = self.post_message('   ')

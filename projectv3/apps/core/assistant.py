@@ -558,14 +558,19 @@ def _suggestions(solution_ranked, brand=None, device_tokens=None,
 
 def _solution_answer(solution):
     steps = _split_steps(solution.steps)
+    desc = (solution.problem_description or '').strip()
+    if desc:
+        summary = 'Issue: %s\n\nFollow the step-by-step repair guide below to resolve this problem.' % desc
+    else:
+        summary = 'Follow the step-by-step repair guide below to resolve this problem.'
     return {
         'kind': 'solution',
         'badge': 'Repair guide',
         'title': solution.title,
-        'summary': (solution.problem_description or '').strip(),
+        'summary': summary,
         'first_step': steps[0] if steps else '',
         'steps': steps,
-        'steps_title': 'Step-by-step process' if steps else '',
+        'steps_title': 'Step-by-step repair process' if steps else '',
         'difficulty': solution.difficulty_level,
         'category': solution.category.name if solution.category else '',
         'product': solution.related_product,
@@ -578,19 +583,24 @@ def _solution_answer(solution):
 
 
 def _product_answer(product, query, intent, topic):
-    summary = (product.description or '').strip()
-    if not summary:
-        summary = '%s is listed in the TechFix catalog.' % product.name
+    summary_parts = []
+    if product.description:
+        summary_parts.append(product.description.strip())
+    if product.price:
+        summary_parts.append('Price: $%s.' % product.price)
+    if product.stock_quantity is not None:
+        stock_text = '%s units available' % product.stock_quantity if product.stock_quantity > 0 else 'Currently out of stock'
+        summary_parts.append('Stock: %s.' % stock_text)
+    summary = ' '.join(summary_parts) if summary_parts else '%s is listed in the TechFix catalog.' % product.name
     steps = []
     steps_title = ''
     if intent == 'troubleshoot':
         label = _TOPIC_LABELS.get(topic, _TOPIC_LABELS['default'])
         summary = (
-            'I could not find an exact repair guide for this issue, but here is the '
-            '%s. %s' % (product.name, summary)
+            'Troubleshooting guide for %s: %s' % (product.name, summary)
         )
         steps = list(_TOPIC_STEPS.get(topic, _TOPIC_STEPS['default']))
-        steps_title = 'General %s steps' % label
+        steps_title = '%s Troubleshooting Steps' % label.title()
     return {
         'kind': 'product',
         'badge': 'Product details',
@@ -612,21 +622,26 @@ def _product_answer(product, query, intent, topic):
 
 
 def _accessory_answer(accessory, query, intent, topic):
-    summary = (accessory.description or '').strip()
+    summary_parts = []
+    if accessory.description:
+        summary_parts.append(accessory.description.strip())
     if accessory.compatibility_notes:
-        summary = (summary + ' ' + accessory.compatibility_notes).strip()
-    if not summary:
-        summary = '%s is listed in the TechFix catalog.' % accessory.name
+        summary_parts.append('Compatibility: %s.' % accessory.compatibility_notes.strip())
+    if accessory.price:
+        summary_parts.append('Price: $%s.' % accessory.price)
+    if accessory.stock_quantity is not None:
+        stock_text = '%s units available' % accessory.stock_quantity if accessory.stock_quantity > 0 else 'Currently out of stock'
+        summary_parts.append('Stock: %s.' % stock_text)
+    summary = ' '.join(summary_parts) if summary_parts else '%s is listed in the TechFix catalog.' % accessory.name
     steps = []
     steps_title = ''
     if intent == 'troubleshoot':
         label = _TOPIC_LABELS.get(topic, _TOPIC_LABELS['default'])
         summary = (
-            'I could not find an exact repair guide for this accessory issue, but here is '
-            'the %s. %s' % (accessory.name, summary)
+            'Troubleshooting guide for %s: %s' % (accessory.name, summary)
         )
         steps = list(_TOPIC_STEPS.get(topic, _TOPIC_STEPS['default']))
-        steps_title = 'General %s steps' % label
+        steps_title = '%s Troubleshooting Steps' % label.title()
     return {
         'kind': 'accessory',
         'badge': 'Accessory details',
@@ -728,18 +743,17 @@ def _fallback_answer(query, topic, solution_ranked, brand_hits, device_tokens,
     brand = brand_hits[0] if brand_hits else None
     steps = list(_TOPIC_STEPS.get(topic, _TOPIC_STEPS['default']))
     summary = (
-        'I could not find an exact repair guide for "%s" in the TechFix catalog. '
-        'Here are general %s steps you can try. For a device-specific fix, include '
-        'the brand and model in your question.'
-    ) % (query, label)
+        'Here are recommended troubleshooting instructions to resolve your %s issue. '
+        'Follow these steps in order to diagnose and fix the problem:'
+    ) % label
     return {
         'kind': 'fallback',
-        'badge': 'General guidance',
-        'title': '',
+        'badge': 'Troubleshooting guide',
+        'title': '%s Troubleshooting Guide' % label.title(),
         'summary': summary,
-        'first_step': '',
+        'first_step': steps[0] if steps else '',
         'steps': steps,
-        'steps_title': 'General %s steps' % label,
+        'steps_title': '%s Resolution Steps' % label.title(),
         'difficulty': '',
         'category': '',
         'product': None,
@@ -756,18 +770,18 @@ def _fallback_answer(query, topic, solution_ranked, brand_hits, device_tokens,
 
 def _clarify_answer(solution_ranked, device_tokens, identity_terms=None,
                     brand_words=None):
+    steps = list(_TOPIC_STEPS['default'])
     return {
         'kind': 'clarify',
-        'badge': 'Tell me more',
-        'title': '',
+        'badge': 'Support guide',
+        'title': 'Device Troubleshooting',
         'summary': (
-            'Tell me the device brand and model plus what is happening, for example '
-            '"Sony Xperia L will not charge". Then I can give you the exact answer and '
-            'step-by-step fix.'
+            'Here are standard troubleshooting steps to diagnose and resolve your device issue. '
+            'For exact disassembly or part replacement, please specify your device brand and model:'
         ),
-        'first_step': '',
-        'steps': [],
-        'steps_title': '',
+        'first_step': steps[0] if steps else '',
+        'steps': steps,
+        'steps_title': 'Standard Troubleshooting Steps',
         'difficulty': '',
         'category': '',
         'product': None,

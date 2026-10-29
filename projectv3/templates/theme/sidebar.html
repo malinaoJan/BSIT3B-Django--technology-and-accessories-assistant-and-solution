@@ -21,24 +21,28 @@
       </a>
       <a href="{% url 'product_list' %}" class="sidebar-link {% if current == 'product_list' or current == 'product_detail' %}active{% endif %}">
         <i class="fa-regular fa-image"></i>
-        <span>Images</span>
+        <span>{% if request.user.is_authenticated %}Images{% else %}Products{% endif %}</span>
       </a>
+      {% if request.user.is_authenticated %}
       <a href="{% url 'scheduled_assistant' %}" class="sidebar-link {% if current == 'scheduled_assistant' %}active{% endif %}">
         <i class="fa-regular fa-calendar"></i>
         <span>Scheduled</span>
       </a>
+      {% endif %}
       <a href="{% url 'brand_list' %}" class="sidebar-link {% if current == 'brand_list' or current == 'brand_detail' %}active{% endif %}">
         <i class="fa-solid fa-book-open"></i>
         <span>Library</span>
       </a>
       <a href="{% url 'accessory_list' %}" class="sidebar-link {% if current == 'accessory_list' or current == 'accessory_detail' %}active{% endif %}">
         <i class="fa-solid fa-puzzle-piece"></i>
-        <span>Plugins</span>
+        <span>{% if request.user.is_authenticated %}Plugins{% else %}Accessories{% endif %}</span>
       </a>
+      {% if request.user.is_authenticated %}
       <a href="{% url 'info:info_list' %}" class="sidebar-link {% if app == 'info' %}active{% endif %}">
         <i class="fa-solid fa-code"></i>
         <span>Codex</span>
       </a>
+      {% endif %}
       <a href="{% url 'dashboard' %}#techfix" class="sidebar-link {% if current == 'dashboard' and request.GET.q %}active{% endif %}">
         <i class="fa-regular fa-compass"></i>
         <span>Explore</span>
@@ -61,10 +65,12 @@
           <i class="fa-solid fa-wrench"></i>
           <span>Repair guides</span>
         </a>
+        {% if request.user.is_authenticated %}
         <a href="{% url 'info:info_list' %}" class="sidebar-link">
           <i class="fa-regular fa-address-card"></i>
           <span>Info records</span>
         </a>
+        {% endif %}
         {% if request.user.is_superuser %}
         <a href="{% url 'users:user_list' %}" class="sidebar-link {% if app == 'users' %}active{% endif %}">
           <i class="fa-solid fa-users"></i>
@@ -91,6 +97,7 @@
   </nav>
 
   <div class="sidebar-footer">
+    {% if request.user.is_authenticated %}
     <div class="sidebar-user">
       <span class="sidebar-avatar">
         {% if user.first_name and user.last_name %}{{ user.first_name|first|upper }}{{ user.last_name|first|upper }}{% else %}{{ user.username|first|upper }}{% endif %}
@@ -110,6 +117,19 @@
       <span><i class="fa-solid fa-gift"></i> Claim offer</span>
       <i class="fa-solid fa-chevron-right"></i>
     </a>
+    {% else %}
+    <div class="sidebar-user">
+      <span class="sidebar-avatar">G</span>
+      <span class="sidebar-user-meta">
+        <span class="sidebar-user-name">Guest</span>
+        <span class="sidebar-user-role">Browsing TechFix</span>
+      </span>
+    </div>
+    <div class="guest-sidebar-actions">
+      <a href="{% url 'login' %}" class="btn btn-outline-primary">Sign in</a>
+      <a href="{% url 'register' %}" class="btn btn-primary">Create account</a>
+    </div>
+    {% endif %}
   </div>
 </aside>
 {% endwith %}

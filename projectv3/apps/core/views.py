@@ -162,7 +162,7 @@ def login_view(request):
 @require_POST
 def logout_view(request):
     logout(request)
-    return redirect('login')
+    return redirect('dashboard')
 
 
 def _search_filter(query, fields):
@@ -390,19 +390,51 @@ def _context_query(message, history):
     return message
 
 
+def _is_chat_question(message):
+    text = (message or '').strip().lower()
+    if '?' in text:
+        return True
+    first_word = text.split()[0] if text.split() else ''
+    question_starters = {
+        'how', 'what', 'why', 'where', 'when', 'who', 'which',
+        'can', 'could', 'should', 'would', 'is', 'are', 'do', 'does', 'did',
+        'will', 'tell', 'explain', 'help',
+    }
+    if first_word in question_starters:
+        return True
+    trouble_words = (
+        'fix', 'repair', 'broken', 'issue', 'problem', 'stuck', 'error',
+        'slow', 'lag', 'freeze', 'crash', 'drain', 'overheat', 'fail',
+        'dead', 'not working', "won't", 'wont', 'cant', 'cannot',
+    )
+    return any(w in text for w in trouble_words)
+
+
 def _create_chat_answer(message, history):
     try:
         local_answer = build_answer(_context_query(message, history))
     except Exception:
         logger.exception('Local assistant answer failed')
         local_answer = None
-    if local_answer and local_answer.get('strict'):
-        return local_answer
-    return enhance_answer(message, local_answer, history=history)
+
+    if local_answer and local_answer.get('strict') and not _is_chat_question(message):
+        if local_answer.get('badge') != 'No exact match':
+            return local_answer
+
+    answer = enhance_answer(message, local_answer, history=history)
+    if answer:
+        if local_answer and local_answer.get('matches') and not answer.get('matches'):
+            answer['matches'] = local_answer['matches']
+        if local_answer and local_answer.get('product') and not answer.get('product'):
+            answer['product'] = local_answer['product']
+        if local_answer and local_answer.get('accessory') and not answer.get('accessory'):
+            answer['accessory'] = local_answer['accessory']
+        return answer
+
+    return local_answer
 
 
 @never_cache
-@login_required(login_url='login')
 def home(request):
     if request.GET.get('new'):
         request.session.pop(CHAT_SESSION_KEY, None)
@@ -442,11 +474,6 @@ def scheduled_assistant(request):
 @require_POST
 @never_cache
 def assistant_chat(request):
-    if not request.user.is_authenticated:
-        return JsonResponse(
-            {'error': 'Your session expired. Refresh the page and sign in again.'},
-            status=401,
-        )
     try:
         payload = json.loads(request.body or b'{}')
     except (TypeError, ValueError):
@@ -587,7 +614,6 @@ def _canonical_brand(brand):
     return None
 
 
-@login_required(login_url='login')
 def brand_list(request):
     query = request.GET.get('q', '').strip()
     folders = _get_brand_folders()
@@ -603,7 +629,6 @@ def brand_list(request):
     })
 
 
-@login_required(login_url='login')
 def brand_detail(request, brand):
     from django.http import Http404
 
@@ -641,7 +666,6 @@ def brand_detail(request, brand):
     })
 
 
-@login_required(login_url='login')
 def product_list(request):
     from .models import Product
 
@@ -658,7 +682,6 @@ def product_list(request):
     })
 
 
-@login_required(login_url='login')
 def accessory_list(request):
     from .models import Accessory
 
@@ -675,7 +698,6 @@ def accessory_list(request):
     })
 
 
-@login_required(login_url='login')
 def product_detail(request, pk):
     from django.http import Http404
 
@@ -713,7 +735,6 @@ def product_detail(request, pk):
     })
 
 
-@login_required(login_url='login')
 def accessory_detail(request, pk):
     from django.http import Http404
 
@@ -740,7 +761,6 @@ def accessory_detail(request, pk):
     })
 
 
-@login_required(login_url='login')
 def solution_list(request):
     from .models import Solution
 

@@ -129,10 +129,6 @@ a:hover {
   flex-direction: column;
 }
 
-.app-shell.no-sidebar .app-main {
-  margin-left: 0;
-}
-
 .app-content {
   flex: 1 1 auto;
   padding: 34px 0 76px;
@@ -484,6 +480,13 @@ a:hover {
   font-size: 0.66rem;
 }
 
+.guest-sidebar-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+
 /* Mobile sidebar */
 .mobile-topbar {
   display: none;
@@ -560,33 +563,6 @@ a:hover {
   .container-xl {
     padding-left: 20px;
     padding-right: 20px;
-  }
-}
-
-/* Public (signed-out) header used by the shared base layout */
-.public-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 14px 32px;
-  border-bottom: 1px solid var(--cg-border);
-  background: var(--cg-bg);
-}
-
-.public-header .sidebar-brand {
-  flex: 0 1 auto;
-}
-
-.public-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-@media (max-width: 575.98px) {
-  .public-header {
-    padding: 12px 18px;
   }
 }
 

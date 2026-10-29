@@ -166,7 +166,7 @@ GEMINI_FALLBACK_MODELS = [
     name.strip()
     for name in os.environ.get(
         'GEMINI_FALLBACK_MODELS',
-        'gemini-flash-lite-latest,gemini-3-flash-preview',
+        'gemini-flash-lite-latest,gemini-3.5-flash-lite,gemini-3.5-flash',
     ).split(',')
     if name.strip()
 ]
