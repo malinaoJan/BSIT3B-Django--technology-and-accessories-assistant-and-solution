@@ -3,7 +3,7 @@
 {% block body_class %}{% if chat_messages %}chat-active{% endif %}{% endblock %}
 {% block content %}
 <div class="chat-home">
-  <h1 class="chat-greeting">Let's get started.</h1>
+  <h1 class="chat-greeting">Start Exploring</h1>
 
   <form method="get" action="{% url 'dashboard' %}#techfix" class="chat-composer" id="techfix-search-form"
         data-chat-url="{% url 'assistant_chat' %}" data-csrf-token="{{ csrf_token }}">
@@ -21,7 +21,7 @@
         <span>Think</span>
       </button>
       <div class="composer-actions">
-        <button type="button" class="composer-icon" title="Voice input" aria-label="Voice input">
+        <button type="button" class="composer-icon" id="voiceInputButton" title="Voice input" aria-label="Start voice input" aria-pressed="false">
           <i class="fa-solid fa-microphone"></i>
         </button>
         <button type="submit" class="composer-send" title="Send" aria-label="Send">
@@ -29,6 +29,7 @@
         </button>
       </div>
     </div>
+    <span class="voice-status" id="voiceStatus" role="status" aria-live="polite" hidden></span>
   </form>
 
 </div>
@@ -90,6 +91,8 @@
   var form = document.getElementById('techfix-search-form');
   var input = document.getElementById('techfix-search-input');
   var think = document.getElementById('thinkToggle');
+  var voiceButton = document.getElementById('voiceInputButton');
+  var voiceStatus = document.getElementById('voiceStatus');
   var thread = document.getElementById('chat-thread');
   var userTemplate = document.getElementById('chat-user-template');
   var loadingTemplate = document.getElementById('chat-loading-template');
@@ -100,6 +103,84 @@
   var csrfToken = form.getAttribute('data-csrf-token') || '';
   var submitButton = form.querySelector('.composer-send');
   var sending = false;
+  var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var recognition = SpeechRecognition ? new SpeechRecognition() : null;
+
+  function setVoiceStatus(message) {
+    if (!voiceStatus) return;
+    voiceStatus.textContent = message;
+    voiceStatus.hidden = !message;
+  }
+
+  function setListening(listening) {
+    if (!voiceButton) return;
+    voiceButton.classList.toggle('is-listening', listening);
+    voiceButton.setAttribute('aria-pressed', listening ? 'true' : 'false');
+    voiceButton.setAttribute('aria-label', listening ? 'Stop voice input' : 'Start voice input');
+    voiceButton.title = listening ? 'Stop voice input' : 'Voice input';
+  }
+
+  if (voiceButton) {
+    voiceButton.addEventListener('click', function () {
+      if (!recognition) {
+        setVoiceStatus('Voice input is not supported in this browser. Try a supported browser such as Chrome.');
+        return;
+      }
+
+      if (voiceButton.getAttribute('aria-pressed') === 'true') {
+        recognition.stop();
+        return;
+      }
+
+      setVoiceStatus('');
+      try {
+        recognition.start();
+      } catch (error) {
+        setVoiceStatus('Voice input could not start. Please try again.');
+      }
+    });
+  }
+
+  if (recognition) {
+    recognition.lang = navigator.language || 'en-US';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.addEventListener('start', function () {
+      setListening(true);
+      setVoiceStatus('Listening… Speak now.');
+    });
+
+    recognition.addEventListener('result', function (event) {
+      var transcript = '';
+      for (var index = event.resultIndex; index < event.results.length; index += 1) {
+        if (event.results[index].isFinal) {
+          transcript += event.results[index][0].transcript;
+        }
+      }
+      if (!transcript) return;
+
+      var separator = input.value && !/\s$/.test(input.value) ? ' ' : '';
+      input.value = (input.value + separator + transcript).slice(0, input.maxLength);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      setVoiceStatus('Speech added to the chat box.');
+    });
+
+    recognition.addEventListener('error', function (event) {
+      var messages = {
+        'not-allowed': 'Microphone access was denied. Allow microphone access in your browser settings and try again.',
+        'service-not-allowed': 'The browser is not allowed to use speech recognition.',
+        'audio-capture': 'No microphone was found. Connect a microphone and try again.',
+        'no-speech': 'No speech was detected. Please try again.',
+        'network': 'Voice input needs a network connection. Check your connection and try again.'
+      };
+      setVoiceStatus(messages[event.error] || 'Voice input failed. Please try again.');
+    });
+
+    recognition.addEventListener('end', function () {
+      setListening(false);
+    });
+  }
 
   function scrollToBottom(behavior) {
     var last = thread.lastElementChild;
