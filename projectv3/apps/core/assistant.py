@@ -69,6 +69,8 @@ _MODEL_WORDS = frozenset({
     '2nd', '3rd', '4th', '5th', '10th', '11th', '12th',
 })
 
+_DISTINCTIVE_ALIASES = frozenset({'airpods'})
+
 _ACCESSORY_QUERY_WORDS = frozenset({
     'case', 'cover', 'sleeve', 'bag', 'backpack', 'charger', 'adapter',
     'adaptor', 'cable', 'earbud', 'earphone', 'headphone', 'headset',
@@ -302,7 +304,10 @@ def _strict_tokens(text, drop_generic=True):
             continue
         if stem in _STOPWORDS and raw not in _MODEL_WORDS:
             continue
-        if drop_generic and (raw in _GENERIC_TOKENS or stem in _GENERIC_TOKENS):
+        if drop_generic and (
+            raw in _GENERIC_TOKENS
+            or (stem in _GENERIC_TOKENS and raw not in _DISTINCTIVE_ALIASES)
+        ):
             continue
         tokens.add(raw)
     return tokens
@@ -358,11 +363,34 @@ def _identity_match(item_tokens, identity_terms):
     return bool(identity_terms) and identity_terms <= item_tokens
 
 
-def _has_accessory_intent(query):
+def _accessory_type_tokens(query):
+    tokens = set()
     for token in _strict_tokens(query, drop_generic=False):
         if token in _ACCESSORY_QUERY_WORDS or _stem(token) in _ACCESSORY_QUERY_WORDS:
-            return True
-    return False
+            tokens.add(token)
+            tokens.add(_stem(token))
+    return tokens
+
+
+def _item_has_type(item, type_tokens):
+    if not type_tokens:
+        return True
+    item_tokens = _tokens(getattr(item, 'name', ''))
+    item_tokens |= _tokens(getattr(item, 'kind', ''))
+    return bool(item_tokens & type_tokens)
+
+
+def _item_has_type_name(item, type_tokens):
+    if not type_tokens:
+        return True
+    return bool(_tokens(getattr(item, 'name', '')) & type_tokens)
+
+
+def _brand_matches(item, brand_hits):
+    if not brand_hits:
+        return True
+    brand = (getattr(item, 'brand', '') or '').lower()
+    return any(brand == hit.lower() for hit in brand_hits)
 
 
 def _expansion_tokens(query):
@@ -587,7 +615,9 @@ def _product_answer(product, query, intent, topic):
     if product.description:
         summary_parts.append(product.description.strip())
     if product.price:
-        summary_parts.append('Price: $%s.' % product.price)
+        summary_parts.append('Price: ₱%s.' % product.price)
+    elif _is_price_query(query):
+        summary_parts.append('No price is listed in the TechFix catalog.')
     if product.stock_quantity is not None:
         stock_text = '%s units available' % product.stock_quantity if product.stock_quantity > 0 else 'Currently out of stock'
         summary_parts.append('Stock: %s.' % stock_text)
@@ -628,7 +658,9 @@ def _accessory_answer(accessory, query, intent, topic):
     if accessory.compatibility_notes:
         summary_parts.append('Compatibility: %s.' % accessory.compatibility_notes.strip())
     if accessory.price:
-        summary_parts.append('Price: $%s.' % accessory.price)
+        summary_parts.append('Price: ₱%s.' % accessory.price)
+    elif _is_price_query(query):
+        summary_parts.append('No price is listed in the TechFix catalog.')
     if accessory.stock_quantity is not None:
         stock_text = '%s units available' % accessory.stock_quantity if accessory.stock_quantity > 0 else 'Currently out of stock'
         summary_parts.append('Stock: %s.' % stock_text)
@@ -689,6 +721,31 @@ def _results_answer(title, summary, products=(), accessories=(), solutions=()):
             'solutions': solutions[:30],
         },
     }
+
+
+def _catalog_results_answer(query, matched_products, matched_accessories):
+    matched_products = list(matched_products)
+    matched_accessories = list(matched_accessories)
+    if not matched_products and not matched_accessories:
+        return None
+    counts = []
+    if matched_products:
+        counts.append(_plural(len(matched_products), 'product'))
+    if matched_accessories:
+        counts.append(
+            _plural(len(matched_accessories), 'accessory', 'accessories')
+        )
+    summary = 'I found %s matching "%s" in the TechFix catalog.' % (
+        ' and '.join(counts), query,
+    )
+    answer = _results_answer(
+        query,
+        summary,
+        products=matched_products,
+        accessories=matched_accessories,
+    )
+    answer['sources'] = []
+    return answer
 
 
 def _no_match_answer(query):
@@ -837,7 +894,8 @@ def _sources(solution_ranked, product_ranked, accessory_ranked, limit=5,
             'category': product.category.name if product.category else '',
             'description': re.sub(r'\s+', ' ', product.description or '').strip()[:600],
             'specifications': re.sub(r'\s+', ' ', product.specifications or '').strip()[:300],
-            'price': str(product.price),
+            'price': str(product.price) if product.price is not None else '',
+            'source_url': product.source_url,
             'stock': product.stock_quantity,
         })
     for score, _, accessory in accessory_ranked:
@@ -856,7 +914,8 @@ def _sources(solution_ranked, product_ranked, accessory_ranked, limit=5,
             'compatibility': re.sub(
                 r'\s+', ' ', accessory.compatibility_notes or ''
             ).strip()[:300],
-            'price': str(accessory.price),
+            'price': str(accessory.price) if accessory.price is not None else '',
+            'source_url': accessory.source_url,
             'stock': accessory.stock_quantity,
         })
     return sources
@@ -962,27 +1021,62 @@ def build_answer(query):
         )
     ]
 
+    accessory_type_tokens = _accessory_type_tokens(query)
+
     if not issue_signal and query_identity:
-        if _has_accessory_intent(query):
-            if strict_accessory_ranked:
-                found = [item for _, _, item in strict_accessory_ranked]
-                answer = _results_answer(
-                    query,
-                    'I found %s matching "%s" in the TechFix catalog.' % (
-                        _plural(len(found), 'accessory', 'accessories'), query,
-                    ),
-                    accessories=found,
-                )
+        strict_products = [
+            item for item in strict_product_ranked
+            if _brand_matches(item[2], brand_hits)
+        ]
+        strict_accessories = [
+            item for item in strict_accessory_ranked
+            if _brand_matches(item[2], brand_hits)
+            and _item_has_type(item[2], accessory_type_tokens)
+        ]
+        products_have_type = any(
+            _item_has_type(item[2], accessory_type_tokens)
+            for item in strict_products
+        )
+
+        if accessory_type_tokens and not products_have_type:
+            if strict_accessories:
+                found = [item for _, _, item in strict_accessories]
+                answer = _catalog_results_answer(query, (), found)
             else:
-                answer = _no_match_answer(query)
+                relaxed_identity = {
+                    token for token in query_identity
+                    if not any(char.isdigit() for char in token)
+                    and token not in _MODEL_WORDS
+                }
+                fallback_accessories = []
+                for _, _, item in accessory_ranked:
+                    if not _brand_matches(item, brand_hits):
+                        continue
+                    if not _item_has_type(item, accessory_type_tokens):
+                        continue
+                    item_identity = _accessory_identity_tokens(
+                        item, brand_words
+                    )
+                    if relaxed_identity and _identity_match(
+                        item_identity, relaxed_identity
+                    ):
+                        fallback_accessories.append(item)
+                    elif not relaxed_identity and brand_hits:
+                        fallback_accessories.append(item)
+                if fallback_accessories:
+                    answer = _catalog_results_answer(
+                        query, (), fallback_accessories
+                    )
+                else:
+                    answer = _no_match_answer(query)
             answer['sources'] = _sources(
                 solution_ranked, product_ranked, accessory_ranked,
                 identity_terms=accessory_identity, brand_words=brand_words,
             )
             return answer
 
-        if strict_product_ranked:
-            found = [item for _, _, item in strict_product_ranked]
+        if strict_products:
+            found = [item for _, _, item in strict_products]
             exact = [
                 item for item in found
                 if _product_identity_tokens(item, brand_words) == query_identity
@@ -990,6 +1084,7 @@ def build_answer(query):
             if len(exact) == 1 or len(found) == 1:
                 selected = exact[0] if len(exact) == 1 else found[0]
                 answer = _product_answer(selected, query, intent, topic)
+                answer['strict'] = True
                 answer['sources'] = _sources(
                     solution_ranked, product_ranked, accessory_ranked,
                     identity_terms=_product_identity_tokens(
@@ -999,28 +1094,16 @@ def build_answer(query):
                     exact_identity=True,
                 )
             else:
-                answer = _results_answer(
-                    query,
-                    'I found %s matching "%s" in the TechFix catalog.' % (
-                        _plural(len(found), 'product'), query,
-                    ),
-                    products=found,
-                )
+                answer = _catalog_results_answer(query, found, ())
                 answer['sources'] = _sources(
                     solution_ranked, product_ranked, accessory_ranked,
                     identity_terms=query_identity, brand_words=brand_words,
                 )
             return answer
 
-        if strict_accessory_ranked:
-            found = [item for _, _, item in strict_accessory_ranked]
-            answer = _results_answer(
-                query,
-                'I found %s matching "%s" in the TechFix catalog.' % (
-                    _plural(len(found), 'accessory', 'accessories'), query,
-                ),
-                accessories=found,
-            )
+        if strict_accessories:
+            found = [item for _, _, item in strict_accessories]
+            answer = _catalog_results_answer(query, (), found)
             answer['sources'] = _sources(
                 solution_ranked, product_ranked, accessory_ranked,
                 identity_terms=accessory_identity, brand_words=brand_words,
@@ -1030,6 +1113,52 @@ def build_answer(query):
         answer = _no_match_answer(query)
         answer['sources'] = []
         return answer
+
+    if not issue_signal and not query_identity:
+        if accessory_type_tokens:
+            matched_products = [
+                item for item in products
+                if _brand_matches(item, brand_hits)
+                and _item_has_type(item, accessory_type_tokens)
+            ]
+            matched_accessories = [
+                item for item in accessories
+                if _brand_matches(item, brand_hits)
+                and _item_has_type(item, accessory_type_tokens)
+            ]
+            named_products = [
+                item for item in matched_products
+                if _item_has_type_name(item, accessory_type_tokens)
+            ]
+            named_accessories = [
+                item for item in matched_accessories
+                if _item_has_type_name(item, accessory_type_tokens)
+            ]
+            if named_products or named_accessories:
+                matched_products = named_products
+                matched_accessories = named_accessories
+            answer = _catalog_results_answer(
+                query, matched_products, matched_accessories
+            )
+            if answer is not None:
+                return answer
+
+        if device_tokens:
+            matched_products = [
+                item for item in products
+                if _brand_matches(item, brand_hits)
+                and _device_match(item, device_tokens)
+            ]
+            matched_accessories = [
+                item for item in accessories
+                if _brand_matches(item, brand_hits)
+                and _device_match(item, device_tokens)
+            ]
+            answer = _catalog_results_answer(
+                query, matched_products, matched_accessories
+            )
+            if answer is not None:
+                return answer
 
     solution_pool = strict_solution_ranked if query_identity else solution_ranked
     product_pool = strict_product_ranked if query_identity else product_ranked

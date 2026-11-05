@@ -1,15 +1,16 @@
 {% load static %}
+{% load socialaccount %}
 <!doctype html>
-<html lang="en" data-bs-theme="light">
+<html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta http-equiv="X-UA-Compatible" content="ie=edge" />
-  <meta name="theme-color" content="#ffffff" />
+  <meta name="theme-color" content="#7c3aed" />
   <title>Sign in - TechFix</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='46' fill='%230d0d0d'/><path d='M50 24l6.5 19.5L76 50l-19.5 6.5L50 76l-6.5-19.5L24 50l19.5-6.5z' fill='white'/></svg>"/>
   <link href="{% static 'css/tabler.css' %}" rel="stylesheet" />
-  <link href="{% static 'css/chatgpt-theme.css' %}?v=1" rel="stylesheet" />
+  <link href="{% static 'css/chatgpt-theme.css' %}?v=29" rel="stylesheet" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;550;600;700&display=swap" rel="stylesheet" />
@@ -19,6 +20,9 @@
 <body class="auth-body">
   <div class="auth-page">
     <div class="auth-card">
+      <a href="{% url 'dashboard' %}" data-smart-back class="auth-close" aria-label="Close">
+        <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+      </a>
       <div class="auth-brand">
         <span class="auth-logo"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
         <span>TechFix</span>
@@ -33,14 +37,16 @@
       {% endfor %}
       {% endif %}
 
-      <form method="post">
+      <form method="post" id="loginForm">
         {% csrf_token %}
         <input type="hidden" name="next" value="{{ request.GET.next|default:'' }}">
 
         <div class="mb-3">
-          <label class="form-label" for="loginUsername">Username</label>
-          <input type="text" class="form-control" id="loginUsername" name="username"
-                 autocomplete="username" required value="{{ username|default:'' }}" {% if locked %}disabled{% endif %}>
+          <label class="form-label" for="loginIdentifier" id="loginIdentifierLabel">Username, email, or phone number</label>
+          <input type="text" class="form-control" id="loginIdentifier" name="identifier"
+                 autocomplete="username" placeholder="Username, email, or phone number"
+                 required value="{{ identifier|default:'' }}" {% if locked %}disabled{% endif %}>
+          <div class="form-hint mt-1 d-none" id="phoneModeHint">Use the phone number saved to your account, then enter your password.</div>
         </div>
 
         <div class="mb-3">
@@ -59,7 +65,42 @@
           Sign in
         </button>
       </form>
-      <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary w-100 mt-2">Back</a>
+      <div class="auth-divider"><span>or</span></div>
+      <div class="social-auth">
+        {% if google_login_enabled %}
+        <form method="post" action="{% provider_login_url 'google' process='login' %}">
+          {% csrf_token %}
+          <button type="submit" class="social-btn">
+            <svg class="social-icon" viewBox="0 0 48 48" aria-hidden="true">
+              <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+              <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+              <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+              <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+            </svg>
+            <span>Continue with Google</span>
+          </button>
+        </form>
+        {% else %}
+        <button type="button" class="social-btn" id="googleSetupBtn" aria-describedby="googleSetupNotice">
+          <svg class="social-icon" viewBox="0 0 48 48" aria-hidden="true">
+            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+          </svg>
+          <span>Continue with Google</span>
+        </button>
+        <div class="alert alert-warning d-none" id="googleSetupNotice" role="alert">
+          Google sign-in is not configured yet. Add <code>GOOGLE_OAUTH_CLIENT_ID</code> and
+          <code>GOOGLE_OAUTH_CLIENT_SECRET</code> to <code>.env</code>, then restart the server.
+        </div>
+        {% endif %}
+
+        <button type="button" class="social-btn" id="phoneSignInBtn" aria-pressed="false" {% if locked %}disabled{% endif %}>
+          <i class="fa-solid fa-phone social-icon" aria-hidden="true"></i>
+          <span id="phoneSignInLabel">Continue with phone</span>
+        </button>
+      </div>
     </div>
 
     <p class="auth-footer">
@@ -83,6 +124,52 @@
             icon.classList.replace('fa-eye-slash', 'fa-eye');
             toggle.setAttribute('aria-label', 'Show password');
           }
+        });
+      }
+
+      var phoneBtn = document.getElementById('phoneSignInBtn');
+      var phoneLabel = document.getElementById('phoneSignInLabel');
+      var phoneHint = document.getElementById('phoneModeHint');
+      var identifier = document.getElementById('loginIdentifier');
+      var identifierLabel = document.getElementById('loginIdentifierLabel');
+      if (phoneBtn && identifier && identifierLabel) {
+        var defaultLabel = identifierLabel.textContent;
+        var defaultPlaceholder = identifier.getAttribute('placeholder');
+        var defaultAutocomplete = identifier.getAttribute('autocomplete');
+        var defaultType = identifier.type;
+        var phoneMode = false;
+
+        phoneBtn.addEventListener('click', function () {
+          phoneMode = !phoneMode;
+          phoneBtn.classList.toggle('is-active', phoneMode);
+          phoneBtn.setAttribute('aria-pressed', phoneMode ? 'true' : 'false');
+          if (phoneMode) {
+            identifierLabel.textContent = 'Phone number';
+            identifier.type = 'tel';
+            identifier.setAttribute('inputmode', 'tel');
+            identifier.setAttribute('autocomplete', 'tel');
+            identifier.setAttribute('placeholder', '+639171234567');
+            phoneLabel.textContent = 'Use username or email';
+            if (phoneHint) phoneHint.classList.remove('d-none');
+          } else {
+            identifierLabel.textContent = defaultLabel;
+            identifier.type = defaultType;
+            identifier.removeAttribute('inputmode');
+            identifier.setAttribute('autocomplete', defaultAutocomplete || 'username');
+            identifier.setAttribute('placeholder', defaultPlaceholder || '');
+            phoneLabel.textContent = 'Continue with phone';
+            if (phoneHint) phoneHint.classList.add('d-none');
+          }
+          identifier.focus();
+        });
+      }
+
+      var googleSetupBtn = document.getElementById('googleSetupBtn');
+      var googleSetupNotice = document.getElementById('googleSetupNotice');
+      if (googleSetupBtn && googleSetupNotice) {
+        googleSetupBtn.addEventListener('click', function () {
+          googleSetupNotice.classList.remove('d-none');
+          googleSetupNotice.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         });
       }
     })();

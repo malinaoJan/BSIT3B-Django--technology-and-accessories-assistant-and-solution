@@ -1,15 +1,15 @@
 {% load static %}
 <!doctype html>
-<html lang="en" data-bs-theme="light">
+<html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta http-equiv="X-UA-Compatible" content="ie=edge" />
-  <meta name="theme-color" content="#ffffff" />
+  <meta name="theme-color" content="#7c3aed" />
   <title>Create account - TechFix</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='46' fill='%230d0d0d'/><path d='M50 24l6.5 19.5L76 50l-19.5 6.5L50 76l-6.5-19.5L24 50l19.5-6.5z' fill='white'/></svg>"/>
   <link href="{% static 'css/tabler.css' %}" rel="stylesheet" />
-  <link href="{% static 'css/chatgpt-theme.css' %}?v=1" rel="stylesheet" />
+  <link href="{% static 'css/chatgpt-theme.css' %}?v=29" rel="stylesheet" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;550;600;700&display=swap" rel="stylesheet" />
@@ -19,6 +19,9 @@
 <body class="auth-body">
   <div class="auth-page">
     <div class="auth-card auth-card-wide">
+      <a href="{% url 'dashboard' %}" data-smart-back class="auth-close" aria-label="Close">
+        <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+      </a>
       <div class="auth-brand">
         <span class="auth-logo"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
         <span>TechFix</span>
@@ -29,7 +32,8 @@
 
       {% if errors %}
       <div class="alert alert-danger" role="alert">
-        <i class="fa-solid fa-circle-exclamation me-2"></i> Please fix the errors below.
+        <i class="fa-solid fa-circle-exclamation me-2"></i>
+        {% if errors.form %}{{ errors.form }}{% else %}Please fix the errors below.{% endif %}
       </div>
       {% endif %}
 
@@ -70,6 +74,16 @@
         </div>
 
         <div class="mb-3">
+          <label class="form-label" for="regPhoneNumber">Phone number <span class="text-muted">(optional)</span></label>
+          <input type="tel" name="phone_number" id="regPhoneNumber"
+                 class="form-control {% if errors.phone_number %}is-invalid{% endif %}"
+                 value="{{ form_data.phone_number|default:'' }}" autocomplete="tel"
+                 placeholder="+639171234567">
+          {% if errors.phone_number %}<div class="invalid-feedback">{{ errors.phone_number }}</div>{% endif %}
+          <div class="form-hint">Use international format. You can sign in with this number and your password.</div>
+        </div>
+
+        <div class="mb-3">
           <label class="form-label required" for="password">Password</label>
           <div class="password-field">
             <input type="password" name="password" id="password"
@@ -97,7 +111,6 @@
 
         <button type="submit" class="btn btn-primary w-100 auth-submit">Create account</button>
       </form>
-      <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary w-100 mt-2">Back</a>
     </div>
 
     <p class="auth-footer">

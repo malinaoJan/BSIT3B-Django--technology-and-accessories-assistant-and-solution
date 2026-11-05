@@ -108,25 +108,21 @@
     {% endif %}
 
     {% if answer.kind == 'solution' %}
-    <div class="assistant-meta">
-      {% if answer.difficulty %}
-      <span class="badge {% if answer.difficulty == 'Easy' %}techfix-badge-easy{% elif answer.difficulty == 'Medium' %}techfix-badge-medium{% else %}techfix-badge-hard{% endif %}">{{ answer.difficulty }}</span>
-      {% endif %}
-      {% if answer.category %}<span class="badge techfix-badge-ghost">{{ answer.category }}</span>{% endif %}
-      {% if answer.product %}<span class="badge bg-primary">{{ answer.product.name }}</span>{% endif %}
-      {% if answer.video_url %}<a href="{{ answer.video_url }}" target="_blank" rel="noopener" class="badge techfix-badge-outline text-decoration-none"><i class="fa-brands fa-youtube me-1"></i>Video guide</a>{% endif %}
-    </div>
     <div class="assistant-actions">
       {% if answer.product %}<a href="{% url 'product_detail' answer.product.id %}" class="btn btn-outline-primary">View device</a>{% endif %}
       <a href="{% url 'solution_list' %}" class="btn btn-outline-primary">Browse repair guides</a>
+      {% if answer.video_url %}<a href="{{ answer.video_url }}" target="_blank" rel="noopener" class="btn btn-outline-primary"><i class="fa-brands fa-youtube me-1"></i>Video guide</a>{% endif %}
     </div>
     {% endif %}
 
     {% if answer.kind == 'product' and answer.product %}
+    {% if answer.product.source_url %}<p><a href="{{ answer.product.source_url }}" target="_blank" rel="noopener noreferrer">Official product page <i class="fa-solid fa-arrow-up-right-from-square ms-1" aria-hidden="true"></i></a></p>{% endif %}
     <div class="assistant-specs">
       {% if answer.product.brand %}<span class="assistant-spec"><b>Brand</b> {{ answer.product.brand }}</span>{% endif %}
       {% if answer.product.category %}<span class="assistant-spec"><b>Category</b> {{ answer.product.category }}</span>{% endif %}
+      {% if answer.product.price %}
       <span class="assistant-spec"><b>Price</b> ₱{{ answer.product.price|floatformat:2|intcomma }}</span>
+      {% endif %}
     </div>
     {% if answer.product.specs %}
     <ul class="assistant-spec-list">
@@ -137,10 +133,13 @@
     {% endif %}
 
     {% if answer.kind == 'accessory' and answer.accessory %}
+    {% if answer.accessory.source_url %}<p><a href="{{ answer.accessory.source_url }}" target="_blank" rel="noopener noreferrer">Official product page <i class="fa-solid fa-arrow-up-right-from-square ms-1" aria-hidden="true"></i></a></p>{% endif %}
     <div class="assistant-specs">
       {% if answer.accessory.brand %}<span class="assistant-spec"><b>Brand</b> {{ answer.accessory.brand }}</span>{% endif %}
       {% if answer.accessory.category %}<span class="assistant-spec"><b>Category</b> {{ answer.accessory.category }}</span>{% endif %}
+      {% if answer.accessory.price %}
       <span class="assistant-spec"><b>Price</b> ₱{{ answer.accessory.price|floatformat:2|intcomma }}</span>
+      {% endif %}
     </div>
     {% if answer.accessory.compatibility %}<p class="assistant-text"><strong>Compatibility:</strong> {{ answer.accessory.compatibility }}</p>{% endif %}
     <div class="assistant-actions"><a href="{% url 'accessory_detail' answer.accessory.id %}" class="btn btn-outline-primary">View accessory</a></div>

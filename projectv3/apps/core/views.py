@@ -3,12 +3,14 @@ import logging
 import re
 from datetime import datetime, timedelta
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
+from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
@@ -80,6 +82,7 @@ def _validate_registration_data(data):
     first_name = data.get('first_name', '').strip()
     last_name = data.get('last_name', '').strip()
     email = data.get('email', '').strip()
+    phone_number = data.get('phone_number', '').strip()
     password = data.get('password', '')
     confirm_password = data.get('confirm_password', '')
 
@@ -105,6 +108,15 @@ def _validate_registration_data(data):
             if User.objects.filter(email=email).exists():
                 errors['email'] = 'Email already registered.'
 
+    if phone_number:
+        from apps.users.models import PhoneProfile
+
+        phone_number = re.sub(r'[\s().-]', '', phone_number)
+        if not re.fullmatch(r'\+[1-9]\d{7,14}', phone_number):
+            errors['phone_number'] = 'Enter a valid phone number in international format, such as +639171234567.'
+        elif PhoneProfile.objects.filter(phone_number=phone_number).exists():
+            errors['phone_number'] = 'Phone number already registered.'
+
     if not password:
         errors['password'] = 'Password is required.'
     elif len(password) < 8:
@@ -129,14 +141,34 @@ def login_view(request):
     failed_attempts, remaining = _get_lock_state(request)
     if remaining is not None:
         messages.error(request, f'Too many failed attempts. Try again in {remaining} seconds.')
-        return render(request, 'auth/login.html', {'locked': True, 'remaining': remaining})
+        return render(request, 'auth/login.html', {
+            'locked': True,
+            'remaining': remaining,
+            'google_login_enabled': settings.GOOGLE_OAUTH_ENABLED,
+        })
 
     if request.method == 'GET':
-        return render(request, 'auth/login.html')
+        return render(request, 'auth/login.html', {
+            'google_login_enabled': settings.GOOGLE_OAUTH_ENABLED,
+        })
 
-    username = request.POST.get('username', '').strip()
+    identifier = request.POST.get('identifier', request.POST.get('username', '')).strip()
     password = request.POST.get('password', '')
-    user = authenticate(request, username=username, password=password)
+    from apps.users.models import PhoneProfile
+
+    normalized_phone = re.sub(r'[\s().-]', '', identifier)
+    identity_filter = Q(username__iexact=identifier) | Q(email__iexact=identifier)
+    if re.fullmatch(r'\+[1-9]\d{7,14}', normalized_phone):
+        identity_filter |= Q(phone_profile__phone_number=normalized_phone)
+    matching_users = list(
+        User.objects.filter(identity_filter).distinct().order_by('pk')[:2]
+    )
+    candidate = matching_users[0] if len(matching_users) == 1 else None
+    user = authenticate(
+        request,
+        username=candidate.get_username() if candidate else identifier,
+        password=password,
+    )
 
     if user is not None:
         _reset_lock_state(request)
@@ -153,11 +185,19 @@ def login_view(request):
     if failed_attempts >= MAX_FAILED_ATTEMPTS:
         remaining = _set_lock_state(request)
         messages.error(request, LOCKED_MESSAGE)
-        return render(request, 'auth/login.html', {'locked': True, 'remaining': remaining})
+        return render(request, 'auth/login.html', {
+            'locked': True,
+            'remaining': remaining,
+            'identifier': identifier,
+            'google_login_enabled': settings.GOOGLE_OAUTH_ENABLED,
+        })
 
     remaining_attempts = MAX_FAILED_ATTEMPTS - failed_attempts
     messages.error(request, f'{INVALID_LOGIN_MESSAGE} {remaining_attempts} attempts remaining.')
-    return render(request, 'auth/login.html', {'username': username})
+    return render(request, 'auth/login.html', {
+        'identifier': identifier,
+        'google_login_enabled': settings.GOOGLE_OAUTH_ENABLED,
+    })
 
 
 @require_POST
@@ -235,8 +275,10 @@ def _legacy_accessory_names():
 def _new_first(qs, legacy_names):
     """Order a Product/Accessory queryset so current (non-legacy) items come first,
     then legacy items — each group newest-first by created_at."""
-    from django.db.models import Case, When, Value, IntegerField
+    from django.db.models import Avg, Case, Count, When, Value, IntegerField
     return qs.annotate(
+        _review_count=Count('reviews', distinct=True),
+        _review_avg=Avg('reviews__rating'),
         _legacy=Case(
             When(name__in=legacy_names, then=Value(1)),
             default=Value(0),
@@ -267,7 +309,8 @@ def _serialize_product(product):
         'name': product.name,
         'brand': product.brand,
         'category': product.category.name if product.category else '',
-        'price': str(product.price),
+        'price': str(product.price) if product.price is not None else '',
+        'source_url': product.source_url,
         'stock': product.stock_quantity,
         'specs': product.spec_list,
     }
@@ -281,7 +324,8 @@ def _serialize_accessory(accessory):
         'name': accessory.name,
         'brand': accessory.brand,
         'category': accessory.category.name if accessory.category else '',
-        'price': str(accessory.price),
+        'price': str(accessory.price) if accessory.price is not None else '',
+        'source_url': accessory.source_url,
         'stock': accessory.stock_quantity,
         'compatibility': accessory.compatibility_notes,
     }
@@ -421,9 +465,8 @@ def _create_chat_answer(message, history):
         logger.exception('Local assistant answer failed')
         local_answer = None
 
-    if local_answer and local_answer.get('strict') and not _is_chat_question(message):
-        if local_answer.get('badge') != 'No exact match':
-            return local_answer
+    if local_answer and local_answer.get('strict'):
+        return local_answer
 
     answer = enhance_answer(message, local_answer, history=history)
     if answer:
@@ -579,61 +622,63 @@ def _library_image_search(qs, query):
     ).distinct()
 
 
-def _is_bag_image(item):
-    return item.kind == 'bag' or re.search(
-        r'\b(?:bags?|backpacks?|briefcases?|sleeves?|pouches?|totes?|duffel\s+bags?)\b',
-        item.name,
-        re.IGNORECASE,
-    ) is not None
+_LIBRARY_FEATURED_PRODUCTS = (
+    ('samsung', 'galaxy s26'),
+    ('apple', 'iphone 18 pro'),
+    ('redmagic', 'redmagic 11s pro'),
+    ('realme', 'realme gt 8 pro'),
+)
 
 
 def _get_library_images(query=''):
-    """Recent product and accessory photos for the Library images view."""
+    """Return every matching catalog item for the Library images view."""
     from .models import Accessory, Product
 
-    products = Product.objects.exclude(name__in=_legacy_product_names()).exclude(
-        image=''
-    ).exclude(
-        image__isnull=True
-    ).select_related('category')
-    accessories = Accessory.objects.exclude(
-        name__in=_legacy_accessory_names()
-    ).exclude(image='').exclude(
-        image__isnull=True
-    ).select_related('category')
+    featured_order = {
+        product: index
+        for index, product in enumerate(_LIBRARY_FEATURED_PRODUCTS)
+    }
+    products = Product.objects.select_related('category')
+    accessories = Accessory.objects.select_related('category')
     if query:
         products = _library_image_search(products, query)
         accessories = _library_image_search(accessories, query)
 
     items = []
-    product_count = 0
-    for product in products.order_by('-created_at').iterator():
-        if _is_bag_image(product):
-            continue
+    for product in products.order_by('-created_at', '-pk').iterator():
+        key = (product.brand.casefold(), product.name.casefold())
         items.append({
             'name': product.name,
             'brand': product.brand,
             'kind': 'Product',
-            'image_url': product.image.url,
+            'image_url': product.image.url if product.has_real_photo else '',
+            'icon': product.display_icon,
+            'tint': product.display_tint,
             'url': reverse('product_detail', args=[product.pk]),
+            '_featured_order': featured_order.get(key),
+            '_original_order': len(items),
         })
-        product_count += 1
-        if product_count == 12:
-            break
-    accessory_count = 0
-    for accessory in accessories.order_by('-created_at').iterator():
-        if _is_bag_image(accessory):
-            continue
+    for accessory in accessories.order_by('-created_at', '-pk').iterator():
         items.append({
             'name': accessory.name,
             'brand': accessory.brand,
             'kind': 'Accessory',
-            'image_url': accessory.image.url,
+            'image_url': accessory.image.url if accessory.has_real_photo else '',
+            'icon': accessory.display_icon,
+            'tint': accessory.display_tint,
             'url': reverse('accessory_detail', args=[accessory.pk]),
+            '_featured_order': None,
+            '_original_order': len(items),
         })
-        accessory_count += 1
-        if accessory_count == 12:
-            break
+    items.sort(key=lambda item: (
+        0 if item['_featured_order'] is not None else 1,
+        item['_featured_order']
+        if item['_featured_order'] is not None
+        else item['_original_order'],
+    ))
+    for item in items:
+        item.pop('_featured_order')
+        item.pop('_original_order')
     return items
 
 
@@ -662,7 +707,7 @@ def brand_list(request):
         'query': query,
         'total': len(folders),
         'image_items': image_items,
-        'active_tab': 'all' if query else 'suggested',
+        'active_tab': 'suggested',
     })
 
 
@@ -750,6 +795,50 @@ def accessory_list(request):
     })
 
 
+def _review_context(request, item):
+    reviews = item.reviews.select_related('user').order_by('-created_at', '-pk')
+    user_review = None
+    if request.user.is_authenticated:
+        user_review = reviews.filter(user=request.user).first()
+    return {
+        'reviews': reviews,
+        'user_review': user_review,
+        'has_sample_reviews': reviews.filter(is_sample=True).exists(),
+    }
+
+
+def _handle_review_submission(request, *, product=None, accessory=None):
+    from .models import Review
+
+    if not request.user.is_authenticated:
+        messages.error(request, 'Please sign in to share your review.')
+        return redirect(f"{reverse('login')}?next={request.path}")
+    comment = request.POST.get('comment', '').strip()
+    title = request.POST.get('title', '').strip()[:120]
+    try:
+        rating = int(request.POST.get('rating', ''))
+    except (TypeError, ValueError):
+        rating = 0
+    if rating not in range(1, 6):
+        messages.error(request, 'Please choose a rating from 1 to 5 stars.')
+    elif not comment:
+        messages.error(request, 'Please write a short review before submitting.')
+    else:
+        review, created = Review.objects.update_or_create(
+            user=request.user,
+            product=product,
+            accessory=accessory,
+            defaults={'rating': rating, 'title': title, 'comment': comment},
+        )
+        messages.success(
+            request,
+            'Thanks! Your review has been saved.'
+            if created
+            else 'Your review has been updated.',
+        )
+    return redirect(f'{request.path}#reviews')
+
+
 def product_detail(request, pk):
     from django.http import Http404
 
@@ -759,6 +848,8 @@ def product_detail(request, pk):
         product = Product.objects.select_related('category').get(pk=pk)
     except Product.DoesNotExist:
         raise Http404('Product not found.')
+    if request.method == 'POST':
+        return _handle_review_submission(request, product=product)
     record_recent_activity(
         request, 'product', 'Product: ' + product.name, request.get_full_path()
     )
@@ -787,6 +878,7 @@ def product_detail(request, pk):
         'same_brand': same_brand,
         'solutions': solutions,
         'brands': _get_brand_folders(),
+        **_review_context(request, product),
     })
 
 
@@ -799,6 +891,8 @@ def accessory_detail(request, pk):
         item = Accessory.objects.select_related('category').get(pk=pk)
     except Accessory.DoesNotExist:
         raise Http404('Accessory not found.')
+    if request.method == 'POST':
+        return _handle_review_submission(request, accessory=item)
     record_recent_activity(
         request, 'accessory', 'Accessory: ' + item.name, request.get_full_path()
     )
@@ -816,6 +910,7 @@ def accessory_detail(request, pk):
         'compatible_products': compatible_products,
         'other_items': other_items,
         'brands': _get_brand_folders(),
+        **_review_context(request, item),
     })
 
 
@@ -857,6 +952,7 @@ def register_view(request):
         'first_name': request.POST.get('first_name', ''),
         'last_name': request.POST.get('last_name', ''),
         'email': request.POST.get('email', ''),
+        'phone_number': request.POST.get('phone_number', ''),
         'password': request.POST.get('password', ''),
         'confirm_password': request.POST.get('confirm_password', ''),
     }
@@ -865,12 +961,24 @@ def register_view(request):
     if errors:
         return render(request, 'auth/register.html', {'errors': errors, 'form_data': form_data})
 
-    user = User.objects.create_user(
-        username=form_data['username'].strip(),
-        first_name=form_data['first_name'].strip(),
-        last_name=form_data['last_name'].strip(),
-        email=form_data['email'].strip(),
-        password=form_data['password'],
-    )
-    login(request, user)
+    from apps.users.models import PhoneProfile
+
+    phone_number = re.sub(r'[\s().-]', '', form_data['phone_number'].strip())
+    try:
+        with transaction.atomic():
+            user = User.objects.create_user(
+                username=form_data['username'].strip(),
+                first_name=form_data['first_name'].strip(),
+                last_name=form_data['last_name'].strip(),
+                email=form_data['email'].strip(),
+                password=form_data['password'],
+            )
+            if phone_number:
+                PhoneProfile.objects.create(user=user, phone_number=phone_number)
+    except IntegrityError:
+        return render(request, 'auth/register.html', {
+            'errors': {'form': 'An account already uses one of those details.'},
+            'form_data': form_data,
+        })
+    login(request, user, backend='django.contrib.auth.backends.ModelBackend')
     return redirect('dashboard')

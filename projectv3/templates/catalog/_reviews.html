@@ -1,0 +1,108 @@
+{% load humanize %}
+<section class="card reviews-card mt-3" id="reviews" aria-labelledby="reviews-title">
+  <div class="card-header reviews-header">
+    <div>
+      <div class="card-title mb-1" id="reviews-title"><i class="fas fa-star-half-stroke me-2 techfix-section-icon"></i>Ratings &amp; reviews</div>
+      <div class="reviews-subtitle">Ratings, feedback, and hands-on product experiences.</div>
+    </div>
+    <div class="reviews-summary">
+      <div class="reviews-average">{{ item.display_rating|default:0|floatformat:1 }}<span>/5</span></div>
+      <div class="reviews-summary-meta">
+        <span class="review-stars" aria-label="Average rating {{ item.display_rating|default:0|floatformat:1 }} out of 5">
+          {% for star in "12345"|make_list %}
+          {% if item.display_rating and forloop.counter <= item.display_rating %}<i class="fa-solid fa-star" aria-hidden="true"></i>
+          {% elif item.display_rating and forloop.counter|add:"-0.5" <= item.display_rating %}<i class="fa-solid fa-star-half-stroke" aria-hidden="true"></i>
+          {% else %}<i class="fa-regular fa-star" aria-hidden="true"></i>{% endif %}
+          {% endfor %}
+        </span>
+        {% if item.review_total %}
+        <span class="reviews-count">{{ item.review_total }} review{{ item.review_total|pluralize }}</span>
+        {% elif item.online_rating %}
+        <span class="reviews-count">{% if item.online_rating_count %}{{ item.online_rating_count|intcomma }} online rating{{ item.online_rating_count|pluralize }}{% else %}Online rating{% endif %}{% if item.online_rating_source %} · {{ item.online_rating_source }}{% endif %}</span>
+        {% else %}
+        <span class="reviews-count">No ratings yet</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="card-body">
+    {% include 'theme/messages.html' %}
+    {% if has_sample_reviews %}
+    <div class="reviews-demo-note">
+      <i class="fas fa-flask" aria-hidden="true"></i>
+      <span><strong>Demo content:</strong> the reviews marked <span class="review-sample-badge">Sample</span> are examples for display purposes, not real customer feedback.</span>
+    </div>
+    {% endif %}
+    {% if item.rating_is_online %}
+    <div class="reviews-demo-note">
+      <i class="fas fa-globe" aria-hidden="true"></i>
+      <span><strong>Online rating:</strong> {{ item.online_rating|floatformat:1 }}/5{% if item.online_rating_count %} from {{ item.online_rating_count|intcomma }} ratings{% endif %}{% if item.online_rating_source %} on {{ item.online_rating_source }}{% endif %}. Customer reviews appear below when available.</span>
+    </div>
+    {% endif %}
+    <div class="review-list">
+      {% for review in reviews %}
+      <article class="review-item">
+        <div class="review-item-head">
+          <span class="review-avatar" aria-hidden="true">{{ review.user.get_full_name|default:review.user.username|first|upper }}</span>
+          <div class="review-author-block">
+            <div class="review-author">{% if review.user.get_full_name %}{{ review.user.get_full_name }}{% else %}{{ review.user.username }}{% endif %}{% if review.is_sample %} <span class="review-sample-badge">Sample</span>{% endif %}</div>
+            <div class="review-meta">{{ review.created_at|date:"M j, Y" }}</div>
+          </div>
+          <span class="review-stars" aria-label="Rated {{ review.rating }} out of 5">
+            {% for star in "12345"|make_list %}
+            <i class="fa-{% if forloop.counter <= review.rating %}solid{% else %}regular{% endif %} fa-star" aria-hidden="true"></i>
+            {% endfor %}
+          </span>
+        </div>
+        {% if review.title %}<h4 class="review-title">{{ review.title }}</h4>{% endif %}
+        <p class="review-comment">{{ review.comment|linebreaksbr }}</p>
+      </article>
+      {% empty %}
+      <div class="review-empty">
+        <span class="review-empty-icon"><i class="fa-regular fa-star"></i></span>
+        <div>
+          <div class="review-empty-title">No customer reviews yet</div>
+          <div class="review-empty-text">Be the first to share your experience with this item.</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card-footer review-form-footer">
+    {% if request.user.is_authenticated %}
+    <form method="post" action="{{ request.path }}#reviews" class="review-form">
+      {% csrf_token %}
+      <div class="review-form-head">
+        <div>
+          <div class="review-form-title">{% if user_review %}Update your review{% else %}Share your experience{% endif %}</div>
+          <div class="review-form-subtitle">{% if user_review %}Edit your rating or feedback below.{% else %}Tell other customers how this item has worked for you.{% endif %}</div>
+        </div>
+        <div class="review-rating-input" role="radiogroup" aria-label="Your rating">
+          {% for star in "12345"|make_list reversed %}
+          <input type="radio" id="review-star-{{ star }}" name="rating" value="{{ star }}"{% if user_review.rating|stringformat:"s" == star %} checked{% endif %} required>
+          <label for="review-star-{{ star }}" title="{{ star }} star{{ star|pluralize }}"><i class="fa-solid fa-star" aria-hidden="true"></i><span class="visually-hidden">{{ star }} star{{ star|pluralize }}</span></label>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="review-form-grid">
+        <input type="text" name="title" maxlength="120" value="{{ user_review.title|default:'' }}" class="form-control" placeholder="Review title (optional)" aria-label="Review title">
+        <textarea name="comment" rows="3" class="form-control review-comment-input" placeholder="What did you like or dislike? How did you use it?" aria-label="Review comment" required>{{ user_review.comment|default:'' }}</textarea>
+      </div>
+      <div class="review-form-actions">
+        <span class="review-form-note"><i class="fas fa-circle-info me-1"></i>Your review is public and helps other customers.</span>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane me-2"></i>{% if user_review %}Update review{% else %}Post review{% endif %}</button>
+      </div>
+    </form>
+    {% else %}
+    <div class="review-signin">
+      <div>
+        <div class="review-form-title">Bought this item?</div>
+        <div class="review-form-subtitle">Sign in to rate it and share your experience with other customers.</div>
+      </div>
+      <a href="{% url 'login' %}?next={{ request.path|urlencode }}" class="btn btn-primary"><i class="fas fa-right-to-bracket me-2"></i>Sign in to review</a>
+    </div>
+    {% endif %}
+  </div>
+</section>

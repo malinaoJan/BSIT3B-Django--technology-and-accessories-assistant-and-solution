@@ -14,13 +14,10 @@
           <div class="page-pretitle">Brand folder</div>
           <h2 class="page-title mb-1" style="font-size:1.7rem;">{{ brand }}</h2>
           <div class="d-flex gap-2 flex-wrap">
-            <span class="brand-count-chip"><i class="fas fa-laptop"></i>{{ product_count }} Products</span>
-            <span class="brand-count-chip"><i class="fas fa-headphones"></i>{{ accessory_count }} Accessories</span>
-            <span class="brand-count-chip"><i class="fas fa-screwdriver-wrench"></i>{{ solution_count }} Solutions</span>
           </div>
         </div>
         <div class="d-flex gap-2">
-          <a href="{% url 'brand_list' %}" class="btn btn-outline-primary btn-sm"><i class="fas fa-arrow-left me-1"></i>Back</a>
+          <a href="{% url 'brand_list' %}" data-smart-back class="btn btn-primary btn-sm" title="Back to brands"><i class="fas fa-arrow-left me-1"></i>Back</a>
         </div>
       </div>
     </div>
@@ -30,7 +27,7 @@
     <div class="input-group">
       <input type="text" name="q" value="{{ query }}" class="form-control" placeholder="Search inside {{ brand }}...">
       {% if query %}<a href="{% url 'brand_detail' brand %}" class="btn btn-outline-secondary">Clear</a>{% endif %}
-      <button class="btn btn-primary" type="submit"><i class="fas fa-search"></i></button>
+      <button class="btn btn-primary catalog-search-btn" type="submit"><i class="fas fa-search"></i></button>
     </div>
   </form>
 
@@ -38,14 +35,13 @@
   <div class="card mb-3">
     <div class="card-header">
       <div class="brand-section-head">
-        <span class="brand-section-tile {{ accent }}" style="background:linear-gradient(135deg, var(--bf-from), var(--bf-to));"><i class="fas fa-laptop"></i></span>
+        <span class="brand-section-tile {{ accent }}" style="background:linear-gradient(135deg, var(--bf-from), var(--bf-to));"><i class="fas fa-cube"></i></span>
         <div>
           <div class="card-title mb-0">{{ brand }} Products</div>
-          <div class="text-muted" style="font-size:.82rem;">{{ product_count }} device(s) in this folder</div>
         </div>
       </div>
       <div class="ms-auto">
-        <a href="{% url 'product_list' %}?brand={{ brand|urlencode }}" class="btn btn-outline-primary btn-sm">View all <i class="fas fa-arrow-right ms-1"></i></a>
+        <a href="{% url 'product_list' %}?brand={{ brand|urlencode }}" class="btn btn-sm dark-purple-btn">View all <i class="fas fa-arrow-right ms-1"></i></a>
       </div>
     </div>
     <div class="card-body">
@@ -53,7 +49,7 @@
         {% for product in products %}
         <div class="col-sm-6 col-lg-4">{% include "catalog/_product_card.html" %}</div>
         {% empty %}
-        <div class="col-12"><div class="empty py-4"><div class="empty-icon"><i class="fas fa-laptop fa-2x"></i></div><p class="empty-title">No {{ brand }} products</p></div></div>
+        <div class="col-12"><div class="empty py-4"><div class="empty-icon"><i class="fas fa-cube fa-2x"></i></div><p class="empty-title">No {{ brand }} products</p></div></div>
         {% endfor %}
       </div>
     </div>
@@ -66,11 +62,10 @@
         <span class="brand-section-tile" style="background:linear-gradient(135deg, var(--bf-from), var(--bf-to));"><i class="fas fa-headphones"></i></span>
         <div>
           <div class="card-title mb-0">{{ brand }} Accessories</div>
-          <div class="text-muted" style="font-size:.82rem;">{{ accessory_count }} item(s) in this folder</div>
         </div>
       </div>
       <div class="ms-auto">
-        <a href="{% url 'accessory_list' %}?brand={{ brand|urlencode }}" class="btn btn-outline-primary btn-sm">View all <i class="fas fa-arrow-right ms-1"></i></a>
+        <a href="{% url 'accessory_list' %}?brand={{ brand|urlencode }}" class="btn btn-sm dark-purple-btn">View all <i class="fas fa-arrow-right ms-1"></i></a>
       </div>
     </div>
     <div class="card-body">
@@ -91,11 +86,10 @@
         <span class="brand-section-tile" style="background:linear-gradient(135deg, var(--bf-from), var(--bf-to));"><i class="fas fa-screwdriver-wrench"></i></span>
         <div>
           <div class="card-title mb-0">{{ brand }} Solutions</div>
-          <div class="text-muted" style="font-size:.82rem;">{{ solution_count }} guide(s) in this folder</div>
         </div>
       </div>
       <div class="ms-auto">
-        <a href="{% url 'solution_list' %}?brand={{ brand|urlencode }}" class="btn btn-outline-primary btn-sm">View all <i class="fas fa-arrow-right ms-1"></i></a>
+        <a href="{% url 'solution_list' %}?brand={{ brand|urlencode }}" class="btn btn-sm dark-purple-btn">View all <i class="fas fa-arrow-right ms-1"></i></a>
       </div>
     </div>
     <div class="list-group list-group-flush">
@@ -122,7 +116,7 @@
     <div class="card-header">
       <div class="card-title"><i class="fas fa-folder me-2 techfix-section-icon"></i>Other brand folders</div>
       <div class="ms-auto">
-        <a href="{% url 'brand_list' %}" class="btn btn-outline-primary btn-sm">View all</a>
+        <a href="{% url 'brand_list' %}" class="btn btn-sm dark-purple-btn">View all</a>
       </div>
     </div>
     <div class="card-body">

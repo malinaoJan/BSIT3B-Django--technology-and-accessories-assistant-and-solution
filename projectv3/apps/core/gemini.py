@@ -21,7 +21,8 @@ _SYSTEM_PROMPT = (
     'laptops, desktop PCs, tablets, TVs/monitors, printers, routers, audio devices, gaming consoles, '
     'and accessories, explain the likely cause and provide concrete, actionable, numbered steps.\n'
     '2. TechFix Catalog, Products & Pricing: When TechFix catalog data is provided, use it as the source '
-    'of truth for products, accessories, specs, stock, and prices. Quote exact prices and stock when asked.\n'
+    'of truth for products, accessories, specs, stock, and prices. Quote exact prices and stock when asked. '
+    'If a price or stock value is not listed in the catalog data, say it is not listed; never guess.\n'
     '3. TechFix Platform & Navigation: Explain TechFix features, such as browsing products, checking '
     'accessory compatibility, viewing repair guides, and diagnosing tech problems.\n'
     '4. General Technology Knowledge: Clearly explain tech concepts (e.g., SSD vs HDD, RAM, Wi-Fi 6, '
@@ -81,31 +82,35 @@ def _source_block(source, index):
             '[%s] Product: %s\n'
             'Brand: %s | Category: %s | Price: %s | Stock: %s\n'
             'Description: %s\n'
-            'Specifications: %s'
+            'Specifications: %s\n'
+            'Official product page: %s'
         ) % (
             index,
             source.get('name', ''),
             source.get('brand', ''),
             source.get('category', ''),
-            source.get('price', ''),
-            source.get('stock', ''),
+            source.get('price') or 'not listed',
+            source.get('stock') if source.get('stock') is not None else 'not listed',
             source.get('description', ''),
             source.get('specifications', ''),
+            source.get('source_url', ''),
         )
     return (
         '[%s] Accessory: %s\n'
         'Brand: %s | Category: %s | Price: %s | Stock: %s\n'
         'Description: %s\n'
-        'Compatibility: %s'
+        'Compatibility: %s\n'
+        'Official product page: %s'
     ) % (
         index,
         source.get('name', ''),
         source.get('brand', ''),
         source.get('category', ''),
-        source.get('price', ''),
-        source.get('stock', ''),
+        source.get('price') or 'not listed',
+        source.get('stock') if source.get('stock') is not None else 'not listed',
         source.get('description', ''),
         source.get('compatibility', ''),
+        source.get('source_url', ''),
     )
 
 

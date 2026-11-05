@@ -1,7 +1,10 @@
 import re
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models import Avg, Q
+from django.utils.functional import cached_property
 
 
 _YOUTUBE_ID = re.compile(r'(?:v=|youtu\.be/|/embed/|/shorts/|/live/)([0-9A-Za-z_-]{6,20})')
@@ -132,6 +135,10 @@ def _item_kind(name, category_name):
     return CATEGORY_KIND.get((category_name or '').strip(), 'default')
 
 
+def _has_real_catalog_photo(image):
+    return bool(image and '_tile_' not in image.name)
+
+
 def _brand_tint(brand):
     """Stable palette class (pt-0..pt-7) so each brand gets its own colour."""
     code = 0
@@ -166,9 +173,20 @@ class Product(models.Model):
     brand = models.CharField(max_length=100, blank=True)
     description = models.TextField()
     specifications = models.TextField(blank=True, help_text='RAM, CPU, Storage, etc.')
-    price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    stock_quantity = models.PositiveIntegerField(default=0)
+    price = models.DecimalField(
+        max_digits=10, decimal_places=2, blank=True, null=True, default=None
+    )
+    source_url = models.URLField(blank=True)
+    stock_quantity = models.PositiveIntegerField(
+        blank=True, null=True, default=None
+    )
     image = models.ImageField(upload_to='products/', blank=True, null=True)
+    online_rating = models.DecimalField(
+        max_digits=3, decimal_places=2, blank=True, null=True,
+        help_text='Aggregate rating imported from an online catalog.',
+    )
+    online_rating_count = models.PositiveIntegerField(blank=True, null=True)
+    online_rating_source = models.CharField(max_length=100, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -192,6 +210,10 @@ class Product(models.Model):
         return _brand_tint(self.brand)
 
     @property
+    def has_real_photo(self):
+        return _has_real_catalog_photo(self.image)
+
+    @property
     def spec_list(self):
         """Split the free-text specs into a clean list for detail pages."""
         raw = (self.specifications or '').replace('\r', '')
@@ -201,6 +223,32 @@ class Product(models.Model):
             if chunk:
                 parts.append(chunk)
         return parts
+
+    @cached_property
+    def review_total(self):
+        count = getattr(self, '_review_count', None)
+        return count if count is not None else self.reviews.count()
+
+    @cached_property
+    def average_rating(self):
+        value = getattr(self, '_review_avg', None)
+        return value if value is not None else self.reviews.aggregate(value=Avg('rating'))['value']
+
+    @property
+    def display_rating(self):
+        if self.review_total:
+            return self.average_rating
+        return self.online_rating
+
+    @property
+    def display_rating_count(self):
+        if self.review_total:
+            return self.review_total
+        return self.online_rating_count or 0
+
+    @property
+    def rating_is_online(self):
+        return not self.review_total and self.online_rating is not None
 
 
 class Accessory(models.Model):
@@ -212,11 +260,16 @@ class Accessory(models.Model):
     )
     brand = models.CharField(max_length=100, blank=True)
     description = models.TextField(blank=True)
-    price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    price = models.DecimalField(
+        max_digits=10, decimal_places=2, blank=True, null=True, default=None
+    )
+    source_url = models.URLField(blank=True)
     compatibility_notes = models.TextField(
         blank=True, help_text='Ex. Compatible with USB-C laptops'
     )
-    stock_quantity = models.PositiveIntegerField(default=0)
+    stock_quantity = models.PositiveIntegerField(
+        blank=True, null=True, default=None
+    )
     image = models.ImageField(upload_to='accessories/', blank=True, null=True)
     compatible_products = models.ManyToManyField(
         Product, blank=True, related_name='compatible_accessories'
@@ -242,6 +295,106 @@ class Accessory(models.Model):
     @property
     def display_tint(self):
         return _brand_tint(self.brand)
+
+    @property
+    def has_real_photo(self):
+        return _has_real_catalog_photo(self.image)
+
+    @cached_property
+    def review_total(self):
+        count = getattr(self, '_review_count', None)
+        return count if count is not None else self.reviews.count()
+
+    @cached_property
+    def average_rating(self):
+        value = getattr(self, '_review_avg', None)
+        return value if value is not None else self.reviews.aggregate(value=Avg('rating'))['value']
+
+    @property
+    def display_rating(self):
+        return self.average_rating
+
+    @property
+    def display_rating_count(self):
+        return self.review_total
+
+    @property
+    def rating_is_online(self):
+        return False
+
+
+class Review(models.Model):
+    """Customer rating and feedback for a product or accessory."""
+
+    RATING_CHOICES = [
+        (1, '1 star'),
+        (2, '2 stars'),
+        (3, '3 stars'),
+        (4, '4 stars'),
+        (5, '5 stars'),
+    ]
+
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='reviews',
+    )
+    accessory = models.ForeignKey(
+        Accessory,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='reviews',
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='reviews',
+    )
+    rating = models.PositiveSmallIntegerField(choices=RATING_CHOICES)
+    title = models.CharField(max_length=120, blank=True)
+    comment = models.TextField()
+    is_sample = models.BooleanField(
+        default=False,
+        help_text='Marks demonstration reviews that are not from real customers.',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'techfix_review'
+        ordering = ['-created_at', '-pk']
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    Q(product__isnull=False, accessory__isnull=True)
+                    | Q(product__isnull=True, accessory__isnull=False)
+                ),
+                name='techfix_review_exactly_one_item',
+            ),
+            models.UniqueConstraint(
+                fields=['user', 'product'],
+                condition=Q(product__isnull=False),
+                name='techfix_review_unique_user_product',
+            ),
+            models.UniqueConstraint(
+                fields=['user', 'accessory'],
+                condition=Q(accessory__isnull=False),
+                name='techfix_review_unique_user_accessory',
+            ),
+        ]
+
+    def __str__(self):
+        item = self.product or self.accessory
+        return f'{item} - {self.rating}/5 by {self.user}'
+
+    def clean(self):
+        if (self.product is None) == (self.accessory is None):
+            raise ValidationError(
+                'Choose exactly one product or accessory for this review.'
+            )
 
 
 class Solution(models.Model):

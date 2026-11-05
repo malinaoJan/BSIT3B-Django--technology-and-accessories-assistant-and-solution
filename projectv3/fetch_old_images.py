@@ -7,7 +7,8 @@ Strategy (accuracy first):
      (mini / neo / plus / ultra / other digits ...). This avoids look-alike
      mismatches such as "Galaxy S8" vs "Galaxy Tab S8".
   2. Items without an exact match get a branded placeholder tile drawn with
-     Pillow using the site palette (.pt-0..pt-7), so every card still has art.
+     Pillow using the site palette (.pt-0..pt-7), without text. The catalog UI
+     treats these tiles as placeholders, not as product photos.
 
 Run from the TECHFIX project root:
     venv\\Scripts\\python.exe manage.py shell -c "exec(open('projectv3/fetch_old_images.py', encoding='utf-8').read())"
@@ -361,11 +362,6 @@ PALETTE = {
     4: ("#ec4899", "#9d174d"), 5: ("#8b5cf6", "#6d28d9"),
     6: ("#f59e0b", "#b45309"), 7: ("#14b8a6", "#0f766e"),
 }
-FONT_BOLD = [r"C:\Windows\Fonts\arialbd.ttf", r"C:\Windows\Fonts\seguisb.ttf",
-             r"C:\Windows\Fonts\calibrib.ttf"]
-FONT_REG = [r"C:\Windows\Fonts\arial.ttf", r"C:\Windows\Fonts\segoeui.ttf"]
-
-
 def brand_tint(brand):
     code = 0
     for char in (brand or "").lower():
@@ -378,29 +374,7 @@ def hex_rgb(value):
     return tuple(int(value[i:i + 2], 16) for i in (0, 2, 4))
 
 
-def load_font(candidates, size):
-    from PIL import ImageFont
-    for path in candidates:
-        if os.path.exists(path):
-            return ImageFont.truetype(path, size)
-    return ImageFont.load_default()
-
-
-def wrap(draw, text, font, max_width):
-    lines, current = [], ""
-    for word in text.split():
-        trial = (current + " " + word).strip()
-        if draw.textlength(trial, font=font) <= max_width or not current:
-            current = trial
-        else:
-            lines.append(current)
-            current = word
-    if current:
-        lines.append(current)
-    return lines
-
-
-def make_tile(brand, name, category, size=800):
+def make_tile(brand, size=800):
     from PIL import Image, ImageDraw
 
     start_rgb = hex_rgb(PALETTE[brand_tint(brand)][0])
@@ -415,31 +389,8 @@ def make_tile(brand, name, category, size=800):
 
     draw = ImageDraw.Draw(image, "RGBA")
     pad = int(size * 0.09)
-
-    brand_font = load_font(FONT_BOLD, int(size * 0.085))
-    name_font = load_font(FONT_BOLD, int(size * 0.10))
-    cat_font = load_font(FONT_REG, int(size * 0.045))
-
     draw.rectangle([pad, pad, size - pad, size - pad],
                    outline=(255, 255, 255, 90), width=3)
-
-    brand_text = (brand or "").upper()
-    bbox = draw.textbbox((0, 0), brand_text, font=brand_font)
-    draw.text(((size - (bbox[2] - bbox[0])) / 2, pad + size * 0.05),
-              brand_text, font=brand_font, fill=(255, 255, 255, 230))
-
-    lines = wrap(draw, name, name_font, size - 2 * pad - 40)[:4]
-    y = (size - len(lines) * (name_font.size + 12)) / 2 + size * 0.02
-    for line in lines:
-        bbox = draw.textbbox((0, 0), line, font=name_font)
-        draw.text(((size - (bbox[2] - bbox[0])) / 2, y), line,
-                  font=name_font, fill=(255, 255, 255, 245))
-        y += name_font.size + 12
-
-    if category:
-        bbox = draw.textbbox((0, 0), category, font=cat_font)
-        draw.text(((size - (bbox[2] - bbox[0])) / 2, size - pad - size * 0.075),
-                  category, font=cat_font, fill=(255, 255, 255, 205))
 
     buffer = io.BytesIO()
     image.save(buffer, format="JPEG", quality=88, optimize=True)
@@ -564,7 +515,7 @@ def run():
 
         if not saved:
             try:
-                tile = make_tile(brand, name, obj.category.name if obj.category else "")
+                tile = make_tile(brand)
                 save_image(obj, tile, folder_for(obj), "tile")
                 stats["tile"] += 1
                 print(f"[{index}/{len(queue)}] TILE  {name}", flush=True)

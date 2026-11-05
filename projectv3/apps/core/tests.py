@@ -1,14 +1,17 @@
 import json
+from io import StringIO
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.test import Client, SimpleTestCase, TestCase
+from django.core.management import call_command
+from django.test import Client, SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
 from .assistant import build_answer
 from .gemini import _extract_text, _parse_gemini_data, enhance_answer
-from .models import Accessory, Category, Product, Solution
+from .models import Accessory, Category, Product, Review, Solution
 from .views import CHAT_SESSION_KEY, _context_query
+from apps.users.models import PhoneProfile
 
 
 def ai_answer(**overrides):
@@ -96,17 +99,75 @@ class HomeViewTests(TestCase):
         self.assertNotIn(reverse('accessory_list'), sidebar)
         self.assertNotIn('Recents', sidebar)
 
-    def test_login_and_register_pages_have_back_link(self):
+    def test_login_and_register_pages_have_close_button(self):
         for route in ('login', 'register'):
             with self.subTest(route=route):
                 response = self.client.get(reverse(route))
                 self.assertEqual(response.status_code, 200)
-                self.assertContains(
-                    response,
-                    '<a href="%s" class="btn btn-outline-secondary w-100 mt-2">Back</a>'
-                    % reverse('dashboard'),
-                    html=True,
-                )
+                self.assertContains(response, 'data-smart-back')
+                self.assertContains(response, 'auth-close')
+                self.assertContains(response, 'aria-label="Close"')
+                self.assertNotContains(response, '>Back</a>')
+
+    def test_login_accepts_registered_phone_number(self):
+        user = get_user_model().objects.create_user(
+            username='phone-user',
+            email='phone-user@example.com',
+            password='SecurePassword123!',
+        )
+        PhoneProfile.objects.create(user=user, phone_number='+639171234567')
+
+        response = self.client.post(reverse('login'), {
+            'identifier': '+63 (917) 123-4567',
+            'password': 'SecurePassword123!',
+        })
+
+        self.assertRedirects(response, reverse('dashboard'))
+        self.assertEqual(int(self.client.session['_auth_user_id']), user.pk)
+
+    def test_registration_saves_optional_international_phone_number(self):
+        response = self.client.post(reverse('register'), {
+            'username': 'new-phone-user',
+            'first_name': 'New',
+            'last_name': 'User',
+            'email': 'new-phone-user@example.com',
+            'phone_number': '+63 (917) 123-4567',
+            'password': 'SecurePassword123!',
+            'confirm_password': 'SecurePassword123!',
+        })
+
+        self.assertRedirects(response, reverse('dashboard'))
+        user = get_user_model().objects.get(username='new-phone-user')
+        self.assertEqual(user.phone_profile.phone_number, '+639171234567')
+
+    @override_settings(GOOGLE_OAUTH_ENABLED=False)
+    def test_login_page_explains_google_setup_when_credentials_are_missing(self):
+        response = self.client.get(reverse('login'))
+
+        self.assertContains(response, 'Username, email, or phone number')
+        self.assertContains(response, 'Continue with Google')
+        self.assertContains(response, 'GOOGLE_OAUTH_CLIENT_ID')
+        self.assertContains(response, 'googleSetupNotice')
+        self.assertContains(response, 'Continue with phone')
+        self.assertNotContains(response, 'Continue with Apple')
+
+    @override_settings(
+        GOOGLE_OAUTH_ENABLED=True,
+        SOCIALACCOUNT_PROVIDERS={
+            'google': {
+                'APPS': [{
+                    'client_id': 'test-client-id',
+                    'secret': 'test-client-secret',
+                    'key': '',
+                }],
+            },
+        },
+    )
+    def test_login_page_shows_google_sign_in_when_configured(self):
+        response = self.client.get(reverse('login'))
+
+        self.assertContains(response, 'Continue with Google')
+        self.assertNotContains(response, 'Google sign-in setup required')
 
     def test_recent_activities_persist_for_each_account(self):
         first_user = get_user_model().objects.create_user(
@@ -337,17 +398,16 @@ class LibraryViewTests(TestCase):
             with self.subTest(route=route):
                 self.assertEqual(self.client.get(route).status_code, 200)
 
-    def test_product_detail_back_button_returns_to_products(self):
+    def test_product_detail_back_button_returns_to_brand_folder(self):
+        product = Product.objects.first()
         response = self.client.get(
-            reverse('product_detail', args=[Product.objects.first().pk])
+            reverse('product_detail', args=[product.pk])
         )
 
+        self.assertContains(response, 'data-smart-back')
         self.assertContains(
             response,
-            '<a href="%s" class="btn btn-outline-primary btn-sm">'
-            '<i class="fas fa-arrow-left me-1"></i>Back</a>'
-            % (reverse('dashboard') + '#techfix'),
-            html=True,
+            'href="%s"' % reverse('brand_detail', args=[product.brand]),
         )
         self.assertNotContains(response, 'All products')
 
@@ -386,14 +446,47 @@ class LibraryViewTests(TestCase):
         self.assertContains(accessory_detail, '₱2,345.67')
         self.assertContains(accessory_detail, '₱1,299.00')
 
+    def test_unpriced_catalog_items_show_official_source_without_zero_price(self):
+        product = Product.objects.create(
+            name='Official Product Without Listed Price',
+            category=self.category,
+            brand='TestBrand',
+            description='Product with verified official source.',
+            source_url='https://www.example.com/product',
+        )
+        accessory = Accessory.objects.create(
+            name='Official Accessory Without Listed Price',
+            category=self.category,
+            brand='TestBrand',
+            description='Accessory with verified official source.',
+            source_url='https://www.example.com/accessory',
+        )
+
+        product_detail = self.client.get(
+            reverse('product_detail', args=[product.pk])
+        )
+        accessory_detail = self.client.get(
+            reverse('accessory_detail', args=[accessory.pk])
+        )
+
+        self.assertContains(product_detail, 'https://www.example.com/product')
+        self.assertContains(product_detail, 'Official product page')
+        self.assertNotContains(product_detail, '₱0.00')
+        self.assertNotContains(product_detail, '>Price</td>')
+        self.assertNotContains(product_detail, 'Out of stock')
+        self.assertContains(accessory_detail, 'https://www.example.com/accessory')
+        self.assertContains(accessory_detail, 'Official product page')
+        self.assertNotContains(accessory_detail, '₱0.00')
+        self.assertNotContains(accessory_detail, '>Price</td>')
+        self.assertNotContains(accessory_detail, 'Out of stock')
+
     def test_brand_detail_back_button_returns_to_brands(self):
         response = self.client.get(reverse('brand_detail', args=['TestBrand']))
 
+        self.assertContains(response, 'data-smart-back')
         self.assertContains(
             response,
-            '<a href="%s" class="btn btn-outline-primary btn-sm">'
-            '<i class="fas fa-arrow-left me-1"></i>Back</a>' % reverse('brand_list'),
-            html=True,
+            'href="%s"' % reverse('brand_list'),
         )
         self.assertNotContains(response, 'All brands')
         self.assertNotContains(response, '>Dashboard</a>')
@@ -404,13 +497,16 @@ class LibraryViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, 'catalog/brands.html')
         self.assertContains(response, 'Search library')
-        for tab in ('suggested', 'favorites', 'folders', 'images', 'all'):
+        for tab in ('suggested', 'favorites', 'folders', 'images'):
             self.assertContains(response, 'data-library-tab="%s"' % tab)
+        self.assertNotContains(response, 'data-library-tab="all"')
+        self.assertNotContains(response, 'library-new')
         self.assertContains(response, 'TestBrand')
         self.assertContains(response, 'data-library-favorite="TestBrand"')
 
     def test_recent_page_activity_is_shown_to_signed_in_user(self):
-        self.client.get(reverse('product_detail', args=[Product.objects.first().pk]))
+        product = Product.objects.first()
+        self.client.get(reverse('product_detail', args=[product.pk]))
         self.client.get(reverse('brand_detail', args=['TestBrand']))
 
         response = self.client.get(reverse('dashboard'))
@@ -419,8 +515,11 @@ class LibraryViewTests(TestCase):
         )[1].split('</div>', 1)[0]
 
         self.assertIn('Brand: TestBrand', sidebar)
-        self.assertIn('Product: Test Laptop', sidebar)
-        self.assertLess(sidebar.index('Brand: TestBrand'), sidebar.index('Product: Test Laptop'))
+        self.assertIn('Product: ' + product.name, sidebar)
+        self.assertLess(
+            sidebar.index('Brand: TestBrand'),
+            sidebar.index('Product: ' + product.name),
+        )
 
     def test_library_search_filters_folders(self):
         response = self.client.get(reverse('brand_list'), {'q': 'TestBrand'})
@@ -428,7 +527,7 @@ class LibraryViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'TestBrand')
         self.assertNotContains(response, 'OtherBrand')
-        self.assertContains(response, 'data-initial-tab="all"')
+        self.assertContains(response, 'data-initial-tab="suggested"')
 
     def test_library_search_empty_state(self):
         response = self.client.get(reverse('brand_list'), {'q': 'MissingBrand'})
@@ -463,11 +562,7 @@ class LibraryViewTests(TestCase):
         self.assertContains(response, 'Sony Camera Phone')
         self.assertNotContains(response, 'Unrelated Camera Phone')
 
-    @patch('apps.core.views._legacy_accessory_names', return_value={'Old Catalog Charger'})
-    @patch('apps.core.views._legacy_product_names', return_value={'Old Catalog Laptop'})
-    def test_library_images_show_current_products_and_accessories_without_bags(
-        self, _mock_product_names, _mock_accessory_names
-    ):
+    def test_library_images_show_all_products_and_accessories(self):
         Product.objects.create(
             name='Old Catalog Laptop',
             category=self.category,
@@ -540,19 +635,146 @@ class LibraryViewTests(TestCase):
             stock_quantity=1,
             image='accessories/latest-laptop-sleeve.jpg',
         )
+        Product.objects.create(
+            name='No Photo Product',
+            category=self.category,
+            brand='NewBrand',
+            description='A product without an uploaded image.',
+            price='199.00',
+            stock_quantity=1,
+        )
+        Accessory.objects.create(
+            name='No Photo Accessory',
+            category=self.category,
+            brand='NewBrand',
+            description='An accessory without an uploaded image.',
+            price='9.00',
+            stock_quantity=1,
+        )
+        for index in range(13):
+            Product.objects.create(
+                name='Additional Product %s' % index,
+                category=self.category,
+                brand='NewBrand',
+                description='An additional catalog product.',
+                price='199.00',
+                stock_quantity=1,
+                image='products/additional-product-%s.jpg' % index,
+            )
+            Accessory.objects.create(
+                name='Additional Accessory %s' % index,
+                category=self.category,
+                brand='NewBrand',
+                description='An additional catalog accessory.',
+                price='9.00',
+                stock_quantity=1,
+                image='accessories/additional-accessory-%s.jpg' % index,
+            )
 
         response = self.client.get(reverse('brand_list'))
 
         self.assertEqual(response.status_code, 200)
         image_names = [item['name'] for item in response.context['image_items']]
         self.assertIn('Latest Laptop', image_names)
-        self.assertNotIn('Old Catalog Laptop', image_names)
-        self.assertNotIn('Latest Travel Backpack', image_names)
+        self.assertIn('Old Catalog Laptop', image_names)
+        self.assertIn('Latest Travel Backpack', image_names)
         self.assertIn('Latest USB-C Charger', image_names)
-        self.assertNotIn('Old Catalog Charger', image_names)
-        self.assertNotIn('Latest Laptop Backpack', image_names)
-        self.assertNotIn('Latest Camera Bag', image_names)
-        self.assertNotIn('Laptop Sleeve Case for Latest Laptop', image_names)
+        self.assertIn('Old Catalog Charger', image_names)
+        self.assertIn('Latest Laptop Backpack', image_names)
+        self.assertIn('Latest Camera Bag', image_names)
+        self.assertIn('Laptop Sleeve Case for Latest Laptop', image_names)
+        self.assertIn('No Photo Product', image_names)
+        self.assertIn('No Photo Accessory', image_names)
+        self.assertEqual(
+            sum(item['kind'] == 'Product' for item in response.context['image_items']),
+            19,
+        )
+        self.assertEqual(
+            sum(item['kind'] == 'Accessory' for item in response.context['image_items']),
+            19,
+        )
+        self.assertContains(response, 'library-image-placeholder')
+
+    def test_library_images_put_latest_requested_brand_products_first(self):
+        featured_products = (
+            ('Samsung', 'Galaxy S26'),
+            ('Apple', 'iPhone 18 Pro'),
+            ('RedMagic', 'REDMAGIC 11S Pro'),
+            ('realme', 'realme GT 8 Pro'),
+        )
+        for brand, name in featured_products:
+            Product.objects.create(
+                name=name,
+                category=self.category,
+                brand=brand,
+                description='Current official product.',
+            )
+        Product.objects.create(
+            name='Recent unrelated product',
+            category=self.category,
+            brand='OtherBrand',
+            description='Another catalog product.',
+        )
+
+        response = self.client.get(reverse('brand_list'))
+        image_items = response.context['image_items']
+        self.assertEqual(
+            [(item['brand'], item['name']) for item in image_items[:4]],
+            list(featured_products),
+        )
+        rendered = response.content.decode()
+        positions = [
+            rendered.index('class="library-image-name" title="%s"' % name)
+            for _, name in featured_products
+        ]
+        self.assertEqual(positions, sorted(positions))
+
+    def test_text_tiles_are_not_rendered_as_product_photos(self):
+        product = Product.objects.create(
+            name='Tile Product Name',
+            category=self.category,
+            brand='TestBrand',
+            description='Uses a generated text tile.',
+            image='products/old_products_tile_999.jpg',
+        )
+        accessory = Accessory.objects.create(
+            name='Tile Accessory Name',
+            category=self.category,
+            brand='TestBrand',
+            description='Uses a generated text tile.',
+            image='accessories/old_accessories_tile_999.jpg',
+        )
+
+        self.assertFalse(product.has_real_photo)
+        self.assertFalse(accessory.has_real_photo)
+
+        library = self.client.get(reverse('brand_list'))
+        library_images = {
+            (entry['brand'], entry['name']): entry
+            for entry in library.context['image_items']
+        }
+        self.assertEqual(
+            library_images[('TestBrand', product.name)]['image_url'],
+            '',
+        )
+        self.assertEqual(
+            library_images[('TestBrand', accessory.name)]['image_url'],
+            '',
+        )
+        self.assertContains(library, 'library-image-placeholder')
+
+        for route in (
+            reverse('product_list'),
+            reverse('brand_detail', args=['TestBrand']),
+            reverse('product_detail', args=[product.pk]),
+            reverse('accessory_detail', args=[accessory.pk]),
+        ):
+            with self.subTest(route=route):
+                response = self.client.get(route)
+                self.assertEqual(response.status_code, 200)
+                self.assertNotContains(response, 'old_products_tile_999.jpg')
+                self.assertNotContains(response, 'old_accessories_tile_999.jpg')
+                self.assertNotContains(response, 'prod-media-name')
 
 
 class ChatEndpointTests(TestCase):
@@ -790,6 +1012,30 @@ class StrictAssistantResultsTests(TestCase):
         self.assertEqual(answer['kind'], 'product')
         self.assertEqual(answer['title'], 'iPhone 17 Pro Max')
 
+    def test_price_query_does_not_invent_an_unlisted_price(self):
+        self.iphone_pro_max.price = None
+        self.iphone_pro_max.save(update_fields=['price'])
+        answer = build_answer('price iphone 17 pro max')
+
+        self.assertEqual(answer['kind'], 'product')
+        self.assertIn('No price is listed in the TechFix catalog.', answer['summary'])
+        self.assertNotIn('₱', answer['summary'])
+
+    @patch('apps.core.views.enhance_answer')
+    def test_product_question_uses_exact_catalog_match(self, mocked_enhance):
+        response = self.client.post(
+            reverse('assistant_chat'),
+            data=json.dumps({'message': 'What is iPhone 17 Pro Max?'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        mocked_enhance.assert_not_called()
+        html = response.json()['html']
+        self.assertIn('iPhone 17 Pro Max', html)
+        self.assertIn('₱1,199.00', html)
+        self.assertNotIn('Samsung Galaxy S25 Ultra', html)
+
     def test_samsung_model_query_does_not_pick_fe_variant(self):
         answer = build_answer('samsung galaxy s25 ultra')
 
@@ -818,6 +1064,19 @@ class StrictAssistantResultsTests(TestCase):
         self.assertEqual(answer['badge'], 'No exact match')
         self.assertEqual(answer['matches']['products'], [])
         self.assertEqual(answer['steps'], [])
+
+    @patch('apps.core.views.enhance_answer')
+    def test_chat_does_not_invent_missing_catalog_product(self, mocked_enhance):
+        response = self.client.post(
+            reverse('assistant_chat'),
+            data=json.dumps({'message': 'What is iPhone 18?'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        mocked_enhance.assert_not_called()
+        self.assertIn('No exact match', response.json()['html'])
+        self.assertNotIn('View product', response.json()['html'])
 
     @patch('apps.core.views.enhance_answer')
     def test_chat_strict_results_skip_ai_and_render_matches(self, mocked_enhance):
@@ -999,3 +1258,324 @@ class GeminiEnhanceTests(TestCase):
         self.assertEqual(answer['steps'], [])
         self.assertEqual(answer['steps_title'], '')
         self.assertEqual(answer['badge'], 'AI answer')
+
+class ReviewTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username='reviewer',
+            password='secret1234',
+            first_name='Review',
+            last_name='User',
+        )
+        self.category = Category.objects.create(name='Laptops')
+        self.product = Product.objects.create(
+            name='Review Laptop',
+            category=self.category,
+            brand='ReviewBrand',
+            description='A laptop for review tests.',
+            price='999.00',
+            stock_quantity=1,
+        )
+        self.accessory = Accessory.objects.create(
+            name='Review Dock',
+            category=self.category,
+            brand='ReviewBrand',
+            description='A dock for review tests.',
+            price='99.00',
+            stock_quantity=1,
+        )
+        self.client.force_login(self.user)
+
+    def test_guests_see_reviews_and_signin_prompt(self):
+        self.client.logout()
+        response = self.client.get(
+            reverse('product_detail', args=[self.product.pk])
+        )
+
+        self.assertContains(response, 'Ratings &amp; reviews')
+        self.assertContains(response, 'No customer reviews yet')
+        self.assertContains(response, 'Sign in to review')
+        self.assertNotContains(response, 'Post review')
+
+    def test_user_can_post_and_update_a_product_review(self):
+        url = reverse('product_detail', args=[self.product.pk])
+        response = self.client.post(
+            url,
+            {'rating': '5', 'title': 'Excellent', 'comment': 'Works great.'},
+        )
+
+        self.assertEqual(response.url, url + '#reviews')
+        review = Review.objects.get(product=self.product, user=self.user)
+        self.assertEqual(review.rating, 5)
+        self.assertEqual(review.title, 'Excellent')
+
+        page = self.client.get(url)
+        self.assertContains(page, 'Excellent')
+        self.assertContains(page, 'Works great.')
+        self.assertContains(page, '5.0')
+        self.assertContains(page, '1 review')
+        self.assertContains(page, 'Update your review')
+
+        response = self.client.post(
+            url,
+            {'rating': '3', 'title': 'Changed', 'comment': 'Still good.'},
+        )
+        self.assertEqual(response.url, url + '#reviews')
+        self.assertEqual(
+            Review.objects.filter(product=self.product, user=self.user).count(),
+            1,
+        )
+        review.refresh_from_db()
+        self.assertEqual(review.rating, 3)
+        self.assertEqual(review.title, 'Changed')
+        self.assertEqual(review.comment, 'Still good.')
+
+    def test_user_can_post_an_accessory_review(self):
+        url = reverse('accessory_detail', args=[self.accessory.pk])
+        response = self.client.post(
+            url,
+            {'rating': '4', 'title': 'Useful', 'comment': 'Does the job.'},
+        )
+
+        self.assertEqual(response.url, url + '#reviews')
+        review = Review.objects.get(accessory=self.accessory, user=self.user)
+        self.assertEqual(review.rating, 4)
+        page = self.client.get(url)
+        self.assertContains(page, 'Useful')
+        self.assertContains(page, 'Does the job.')
+        self.assertContains(page, '4.0')
+
+    def test_invalid_review_is_rejected(self):
+        url = reverse('product_detail', args=[self.product.pk])
+        response = self.client.post(url, {'rating': '9', 'comment': ''})
+
+        self.assertEqual(response.url, url + '#reviews')
+        self.assertFalse(Review.objects.exists())
+
+    def test_sample_reviews_are_clearly_labeled(self):
+        Review.objects.create(
+            product=self.product,
+            user=self.user,
+            rating=5,
+            title='Sample title',
+            comment='Sample comment.',
+            is_sample=True,
+        )
+
+        response = self.client.get(
+            reverse('product_detail', args=[self.product.pk])
+        )
+
+        self.assertContains(response, 'Demo content:')
+        self.assertContains(response, 'review-sample-badge')
+        self.assertContains(response, 'not real customer feedback')
+
+
+class RequestedBrandCatalogCommandTests(TestCase):
+    def test_command_imports_requested_brands_and_is_idempotent(self):
+        from apps.core.management.commands.seed_requested_brand_catalog import (
+            BRAND_KEYS,
+            BRAND_NAMES,
+        )
+        from old_accessories_data import OLD_ACCESSORIES
+        from old_products_data import OLD_PRODUCTS
+
+        Product.objects.create(
+            name='Unrequested Laptop',
+            category=Category.objects.create(name='Laptops'),
+            brand='Unrequested',
+            description='Should remain untouched.',
+        )
+        Accessory.objects.create(
+            name='Unrequested Charger',
+            brand='Unrequested',
+            description='Should remain untouched.',
+        )
+
+        first_output = StringIO()
+        call_command(
+            'seed_requested_brand_catalog',
+            stdout=first_output,
+        )
+
+        expected_products = sum(len(OLD_PRODUCTS[key]) for key in BRAND_KEYS)
+        expected_accessories = sum(
+            len(OLD_ACCESSORIES[key]) for key in BRAND_KEYS
+        )
+        self.assertEqual(
+            Product.objects.exclude(brand='Unrequested').count(),
+            expected_products,
+        )
+        self.assertEqual(
+            Accessory.objects.exclude(brand='Unrequested').count(),
+            expected_accessories,
+        )
+        self.assertEqual(Solution.objects.count(), 0)
+        for key in BRAND_KEYS:
+            brand = BRAND_NAMES[key]
+            self.assertEqual(
+                Product.objects.filter(brand=brand).count(),
+                len(OLD_PRODUCTS[key]),
+            )
+            self.assertEqual(
+                Accessory.objects.filter(brand=brand).count(),
+                len(OLD_ACCESSORIES[key]),
+            )
+        self.assertEqual(
+            Accessory.objects.get(
+                brand='Apple',
+                name='Apple 5W USB Power Adapter (original)',
+            )
+            .compatible_products.count(),
+            2,
+        )
+        self.assertEqual(
+            Product.objects.filter(brand='Unrequested').count(),
+            1,
+        )
+        self.assertEqual(
+            Accessory.objects.filter(brand='Unrequested').count(),
+            1,
+        )
+
+        second_output = StringIO()
+        call_command(
+            'seed_requested_brand_catalog',
+            stdout=second_output,
+        )
+        self.assertIn('0 added', second_output.getvalue())
+        self.assertEqual(
+            Product.objects.exclude(brand='Unrequested').count(),
+            expected_products,
+        )
+        self.assertEqual(
+            Accessory.objects.exclude(brand='Unrequested').count(),
+            expected_accessories,
+        )
+
+
+class CurrentOfficialCatalogCommandTests(TestCase):
+    def test_command_imports_source_linked_items_idempotently(self):
+        from apps.core.management.commands.seed_current_official_catalog import (
+            ACCESSORIES,
+            PRODUCTS,
+        )
+
+        existing = Product.objects.create(
+            name='Galaxy S26',
+            category=Category.objects.create(name='Existing phone category'),
+            brand='Samsung',
+            description='Existing catalog entry.',
+            price='1234.00',
+            stock_quantity=5,
+        )
+        existing_accessory = Accessory.objects.create(
+            name='Anker Nano Charger (45W, Smart Display, 180° Foldable)',
+            brand='Anker',
+            description='Existing accessory entry.',
+            price='99.00',
+            stock_quantity=2,
+        )
+
+        first_output = StringIO()
+        call_command('seed_current_official_catalog', stdout=first_output)
+
+        self.assertIn('21 added, 1 refreshed', first_output.getvalue())
+        self.assertIn('6 added, 1 refreshed', first_output.getvalue())
+        self.assertEqual(Product.objects.count(), len(PRODUCTS))
+        self.assertEqual(Accessory.objects.count(), len(ACCESSORIES))
+
+        existing.refresh_from_db()
+        self.assertIsNone(existing.price)
+        self.assertIsNone(existing.stock_quantity)
+        self.assertTrue(existing.source_url.startswith('https://www.samsung.com/'))
+
+        existing_accessory.refresh_from_db()
+        self.assertIsNone(existing_accessory.price)
+        self.assertIsNone(existing_accessory.stock_quantity)
+        self.assertTrue(existing_accessory.source_url.startswith('https://www.anker.com/'))
+
+        new_phone = Product.objects.get(brand='Apple', name='iPhone 18 Pro')
+        self.assertTrue(new_phone.source_url.startswith('https://www.apple.com/'))
+        self.assertIsNone(new_phone.price)
+        self.assertIsNone(new_phone.stock_quantity)
+
+        new_accessory = Accessory.objects.get(
+            brand='Anker',
+            name='Anker Nano Charger (45W, Smart Display, 180° Foldable)',
+        )
+        self.assertTrue(new_accessory.source_url.startswith('https://www.anker.com/'))
+        self.assertIsNone(new_accessory.price)
+        self.assertIsNone(new_accessory.stock_quantity)
+
+        second_output = StringIO()
+        call_command('seed_current_official_catalog', stdout=second_output)
+
+        self.assertIn('0 added, 22 refreshed', second_output.getvalue())
+        self.assertIn('0 added, 7 refreshed', second_output.getvalue())
+        self.assertEqual(Product.objects.count(), len(PRODUCTS))
+        self.assertEqual(Accessory.objects.count(), len(ACCESSORIES))
+
+
+class SampleReviewCommandTests(TestCase):
+    def setUp(self):
+        self.category = Category.objects.create(name='Laptops')
+        self.product = Product.objects.create(
+            name='Seed Laptop',
+            category=self.category,
+            brand='SeedBrand',
+            description='A laptop for seed tests.',
+            price='999.00',
+            stock_quantity=1,
+        )
+        self.accessory = Accessory.objects.create(
+            name='Seed Dock',
+            category=self.category,
+            brand='SeedBrand',
+            description='A dock for seed tests.',
+            price='99.00',
+            stock_quantity=1,
+        )
+
+    def test_command_seeds_every_item_with_labeled_reviews(self):
+        output = StringIO()
+        call_command(
+            'seed_sample_reviews',
+            min_reviews=2,
+            max_reviews=2,
+            seed=7,
+            stdout=output,
+        )
+
+        self.assertEqual(Review.objects.filter(is_sample=True).count(), 4)
+        self.assertEqual(Review.objects.filter(product=self.product).count(), 2)
+        self.assertEqual(Review.objects.filter(accessory=self.accessory).count(), 2)
+        self.assertTrue(
+            all(review.is_sample for review in Review.objects.all())
+        )
+        self.assertTrue(
+            all(
+                review.user.username.startswith('techfix_sample_')
+                for review in Review.objects.select_related('user')
+            )
+        )
+        self.assertIn('Created 4 labeled sample reviews', output.getvalue())
+
+    def test_command_is_idempotent(self):
+        call_command(
+            'seed_sample_reviews',
+            min_reviews=3,
+            max_reviews=3,
+            seed=7,
+            stdout=StringIO(),
+        )
+        call_command(
+            'seed_sample_reviews',
+            min_reviews=3,
+            max_reviews=3,
+            seed=7,
+            stdout=StringIO(),
+        )
+
+        self.assertEqual(Review.objects.filter(is_sample=True).count(), 6)
+        self.assertEqual(Review.objects.filter(is_sample=True).values('user').distinct().count(), 6)

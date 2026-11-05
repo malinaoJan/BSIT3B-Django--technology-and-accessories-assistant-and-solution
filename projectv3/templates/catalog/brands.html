@@ -41,32 +41,6 @@
         {% endif %}
       </form>
 
-      <details class="library-menu library-new">
-        <summary class="library-new-btn">New <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"/></svg></summary>
-        <div class="library-popover library-popover-right">
-          <a href="{% url 'dashboard' %}?new=1" class="library-menu-item">
-            <i class="fa-regular fa-comment-dots" aria-hidden="true"></i>New chat
-          </a>
-          {% if request.user.is_staff %}
-          <div class="library-menu-sep"></div>
-          <a href="{% url 'admin:core_product_add' %}" class="library-menu-item">
-            <i class="fa-solid fa-laptop" aria-hidden="true"></i>Add product
-          </a>
-          <a href="{% url 'admin:core_accessory_add' %}" class="library-menu-item">
-            <i class="fa-solid fa-headphones" aria-hidden="true"></i>Add accessory
-          </a>
-          <a href="{% url 'admin:core_solution_add' %}" class="library-menu-item">
-            <i class="fa-solid fa-screwdriver-wrench" aria-hidden="true"></i>Add solution
-          </a>
-          {% else %}
-          <div class="library-menu-sep"></div>
-          <a href="{% url 'product_list' %}" class="library-menu-item">
-            <i class="fa-solid fa-laptop" aria-hidden="true"></i>Browse products
-          </a>
-          {% endif %}
-        </div>
-      </details>
-
       <details class="library-menu library-menu-sort">
         <summary class="library-icon-btn" title="Sort library" aria-label="Sort library">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 6h10M4 12h7M4 18h4"/><path d="M18 8v9"/><path d="m15 14 3 3 3-3"/></svg>
@@ -88,15 +62,14 @@
     <button type="button" class="library-tab" data-library-tab="favorites" role="tab" aria-selected="false">Favorites</button>
     <button type="button" class="library-tab" data-library-tab="folders" role="tab" aria-selected="false">Folders</button>
     <button type="button" class="library-tab" data-library-tab="images" role="tab" aria-selected="false">Images</button>
-    <button type="button" class="library-tab{% if active_tab == 'all' %} is-active{% endif %}" data-library-tab="all" role="tab" aria-selected="{% if active_tab == 'all' %}true{% else %}false{% endif %}">All</button>
   </div>
 
   <div class="library-panels">
     <section class="library-panel" data-library-panel="folders" role="tabpanel" aria-label="Brand folders">
       <div class="library-grid" data-library-grid data-view="grid">
         {% for folder in brands %}
-        {% with logo=folder.name|brand_logo total_items=folder.product_count|add:folder.accessory_count|add:folder.solution_count %}
-        <article class="library-card" data-library-card data-name="{{ folder.name|lower }}" data-order="{{ forloop.counter0 }}" data-count="{{ total_items }}" data-products="{{ folder.product_count }}" data-accessories="{{ folder.accessory_count }}" data-solutions="{{ folder.solution_count }}" data-favorite="0">
+        {% with logo=folder.name|brand_logo %}
+        <article class="library-card" data-library-card data-name="{{ folder.name|lower }}" data-order="{{ forloop.counter0 }}" data-favorite="0">
           <a href="{% url 'brand_detail' folder.name %}" class="library-card-link">
             <span class="library-card-top">
               <svg class="library-card-file" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></svg>
@@ -108,7 +81,6 @@
               {% else %}
               <span class="library-card-mono" aria-hidden="true">{{ folder.name|first|upper }}</span>
               {% endif %}
-              <span class="library-card-count">{{ total_items }} item{{ total_items|pluralize }}</span>
             </span>
           </a>
           <button type="button" class="library-card-fav" data-library-favorite="{{ folder.name }}" aria-label="Add {{ folder.name }} to favorites" aria-pressed="false" title="Favorite {{ folder.name }}">
@@ -132,12 +104,16 @@
       </div>
     </section>
 
-    <section class="library-panel" data-library-panel="images" role="tabpanel" aria-label="Images" {% if active_tab != 'images' and active_tab != 'all' %}hidden{% endif %}>
+    <section class="library-panel" data-library-panel="images" role="tabpanel" aria-label="Images" {% if active_tab != 'images' %}hidden{% endif %}>
       <div class="library-grid library-image-grid" data-library-grid data-view="grid">
         {% for item in image_items %}
         <a href="{{ item.url }}" class="library-image-card" data-library-image data-name="{{ item.name|lower }}" data-order="{{ forloop.counter0 }}">
           <span class="library-image-thumb">
+            {% if item.image_url %}
             <img src="{{ item.image_url }}" alt="{{ item.name }}" loading="lazy">
+            {% else %}
+            <span class="library-image-placeholder {{ item.tint }}"><i class="{{ item.icon }}" aria-hidden="true"></i></span>
+            {% endif %}
           </span>
           <span class="library-image-meta">
             <span class="library-image-name" title="{{ item.name }}">{{ item.name }}</span>
@@ -168,7 +144,6 @@
   var viewButtons = Array.prototype.slice.call(root.querySelectorAll('[data-library-view]'));
   var folderPanel = root.querySelector('[data-library-panel="folders"]');
   var imagePanel = root.querySelector('[data-library-panel="images"]');
-  var panels = root.querySelector('.library-panels');
   var folderGrid = folderPanel ? folderPanel.querySelector('[data-library-grid]') : null;
   var imageGrid = imagePanel ? imagePanel.querySelector('[data-library-grid]') : null;
   var folderCards = Array.prototype.slice.call(root.querySelectorAll('[data-library-card]'));
@@ -182,6 +157,7 @@
     sort: 'suggested',
     view: 'grid'
   };
+  if (state.tab === 'all') state.tab = 'suggested';
 
   var favoriteSet = {};
   try {
@@ -297,11 +273,10 @@
       tab.setAttribute('aria-selected', active ? 'true' : 'false');
     });
 
-    var showFolders = state.tab === 'suggested' || state.tab === 'favorites' || state.tab === 'folders' || state.tab === 'all';
-    var showImages = state.tab === 'images' || state.tab === 'all';
+    var showFolders = state.tab === 'suggested' || state.tab === 'favorites' || state.tab === 'folders';
+    var showImages = state.tab === 'images';
     if (folderPanel) folderPanel.hidden = !showFolders;
     if (imagePanel) imagePanel.hidden = !showImages;
-    if (panels) panels.classList.toggle('is-all', state.tab === 'all');
 
     var visibleFolders = 0;
     folderCards.forEach(function (card) {

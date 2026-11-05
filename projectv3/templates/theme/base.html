@@ -1,15 +1,15 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="en" data-bs-theme="light">
+<html lang="en" data-bs-theme="dark">
   <head>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
     <meta http-equiv="X-UA-Compatible" content="ie=edge"/>
-    <meta name="theme-color" content="#ffffff"/>
+    <meta name="theme-color" content="#7c3aed"/>
     <title>{% block title %}TechFix{% endblock %}</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='46' fill='%230d0d0d'/><path d='M50 24l6.5 19.5L76 50l-19.5 6.5L50 76l-6.5-19.5L24 50l19.5-6.5z' fill='white'/></svg>"/>
     <link href="{% static 'css/tabler.css' %}" rel="stylesheet"/>
-    <link href="{% static 'css/chatgpt-theme.css' %}?v=12" rel="stylesheet"/>
+    <link href="{% static 'css/chatgpt-theme.css' %}?v=27" rel="stylesheet"/>
     <link rel="preconnect" href="https://fonts.googleapis.com"/>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;550;600;700&display=swap" rel="stylesheet"/>
@@ -79,6 +79,17 @@
         var backdrop = document.getElementById('sidebarBackdrop');
         var closeBtn = document.getElementById('sidebarClose');
         var recentActivities = document.getElementById('recentActivities');
+        var mobileTopbar = document.querySelector('.mobile-topbar');
+
+        function syncStickyOffset() {
+          var offset = mobileTopbar && getComputedStyle(mobileTopbar).display !== 'none'
+            ? mobileTopbar.offsetHeight
+            : 0;
+          document.documentElement.style.setProperty('--sticky-topbar-offset', offset + 'px');
+        }
+
+        syncStickyOffset();
+        window.addEventListener('resize', syncStickyOffset);
 
         window.addEventListener('techfix:recent-activities', function (event) {
           if (!recentActivities || !Array.isArray(event.detail)) return;
@@ -122,6 +133,25 @@
         document.addEventListener('keydown', function (event) {
           if (event.key === 'Escape' && body.classList.contains('sidebar-open')) {
             setOpen(false);
+          }
+        });
+
+        document.addEventListener('click', function (event) {
+          var target = event.target;
+          var backLink = target instanceof Element ? target.closest('[data-smart-back]') : null;
+          if (!backLink) return;
+          if (event.defaultPrevented || event.button !== 0
+              || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+          var sameOriginReferrer = false;
+          try {
+            sameOriginReferrer = !!document.referrer
+              && new URL(document.referrer).origin === window.location.origin;
+          } catch (error) {
+            sameOriginReferrer = false;
+          }
+          if (sameOriginReferrer && window.history.length > 1) {
+            event.preventDefault();
+            window.history.back();
           }
         });
       })();

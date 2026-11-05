@@ -12,6 +12,9 @@ from django.db import IntegrityError
 from django.db.models import Q
 
 
+SAMPLE_REVIEWER_PREFIX = 'techfix_sample_'
+
+
 def _is_superuser(user):
     return user.is_superuser
 
@@ -22,7 +25,9 @@ def _is_superuser(user):
 def user_list_page(request):
     query = request.GET.get('q', '').strip()
 
-    users_list = User.objects.all().order_by('-date_joined')
+    users_list = User.objects.exclude(
+        username__startswith=SAMPLE_REVIEWER_PREFIX
+    ).order_by('-date_joined')
 
     if query:
         users_list = users_list.filter(
@@ -47,7 +52,9 @@ def user_list_page(request):
 @user_passes_test(_is_superuser, login_url='dashboard')
 def user_list_ajax(request):
     query = request.GET.get('q', '').strip()
-    users_list = User.objects.all().order_by('-date_joined')
+    users_list = User.objects.exclude(
+        username__startswith=SAMPLE_REVIEWER_PREFIX
+    ).order_by('-date_joined')
     if query:
         users_list = users_list.filter(
             Q(username__icontains=query) |

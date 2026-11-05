@@ -7,11 +7,10 @@
       <div class="row align-items-center">
         <div class="col">
           <div class="page-pretitle">Catalog</div>
-          <h2 class="page-title"><i class="fas fa-screwdriver-wrench me-2 techfix-section-icon"></i>All Solutions ({{ total }})</h2>
+          <h2 class="page-title"><i class="fas fa-screwdriver-wrench me-2 techfix-section-icon"></i>{% if active_brand %}All {{ active_brand }} Solutions{% else %}All Solutions{% endif %}</h2>
         </div>
         <div class="col-auto d-flex gap-2">
-          <a href="{% url 'brand_list' %}" class="btn btn-outline-primary"><i class="fas fa-folder-open me-1"></i>Brands</a>
-          <a href="{% url 'dashboard' %}" class="btn btn-outline-primary"><i class="fas fa-arrow-left me-1"></i>Dashboard</a>
+          <a href="{% url 'brand_list' %}" data-smart-back class="btn btn-primary" title="Back to brands"><i class="fas fa-arrow-left me-1"></i>Back</a>
         </div>
       </div>
     </div>
@@ -21,7 +20,7 @@
     <div class="input-group">
       <input type="text" name="q" value="{{ query }}" class="form-control" placeholder="Search all solutions...">
       {% if query %}<a href="{% url 'solution_list' %}{% if active_brand %}?brand={{ active_brand|urlencode }}{% endif %}" class="btn btn-outline-secondary">Clear</a>{% endif %}
-      <button class="btn btn-primary" type="submit"><i class="fas fa-search"></i></button>
+      <button class="btn btn-primary catalog-search-btn" type="submit"><i class="fas fa-search"></i></button>
     </div>
     {% if active_brand %}<input type="hidden" name="brand" value="{{ active_brand }}">{% endif %}
   </form>
@@ -30,7 +29,7 @@
   <div class="brand-rail mb-3">
     <a href="{% url 'solution_list' %}{% if query %}?q={{ query|urlencode }}{% endif %}" class="brand-pill {% if not active_brand %}active{% endif %}"><i class="fas fa-border-all"></i>All</a>
     {% for folder in brands %}
-    <a href="{% url 'solution_list' %}?brand={{ folder.name|urlencode }}{% if query %}&q={{ query|urlencode }}{% endif %}" class="brand-pill {% if active_brand|lower == folder.name|lower %}active{% endif %}">{% with logo=folder.name|brand_logo %}{% if logo %}<img src="{{ logo }}" alt="" class="brand-pill-logo" loading="lazy">{% else %}<i class="fas fa-folder"></i>{% endif %}{% endwith %}{{ folder.name }} · {{ folder.solution_count }}</a>
+    <a href="{% url 'solution_list' %}?brand={{ folder.name|urlencode }}{% if query %}&q={{ query|urlencode }}{% endif %}" class="brand-pill {% if active_brand|lower == folder.name|lower %}active{% endif %}">{% with logo=folder.name|brand_logo %}{% if logo %}<img src="{{ logo }}" alt="" class="brand-pill-logo" loading="lazy">{% else %}<i class="fas fa-folder"></i>{% endif %}{% endwith %}{{ folder.name }}</a>
     {% endfor %}
   </div>
   {% if active_brand %}
