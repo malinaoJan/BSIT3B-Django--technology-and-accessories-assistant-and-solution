@@ -695,19 +695,20 @@ class LibraryViewTests(TestCase):
         )
         self.assertContains(response, 'library-image-placeholder')
 
-    def test_library_images_put_latest_requested_brand_products_first(self):
+    def test_library_images_put_latest_iphone_and_samsung_photos_first(self):
         featured_products = (
             ('Samsung', 'Galaxy S26'),
+            ('Samsung', 'Galaxy S26+'),
             ('Apple', 'iPhone 18 Pro'),
-            ('RedMagic', 'REDMAGIC 11S Pro'),
-            ('realme', 'realme GT 8 Pro'),
+            ('Apple', 'iPhone 17e'),
         )
-        for brand, name in featured_products:
+        for index, (brand, name) in enumerate(featured_products):
             Product.objects.create(
                 name=name,
                 category=self.category,
                 brand=brand,
                 description='Current official product.',
+                image='products/featured-%s.jpg' % index,
             )
         Product.objects.create(
             name='Recent unrelated product',
@@ -728,6 +729,29 @@ class LibraryViewTests(TestCase):
             for _, name in featured_products
         ]
         self.assertEqual(positions, sorted(positions))
+
+    def test_library_images_do_not_feature_products_without_real_photos(self):
+        Product.objects.create(
+            name='Galaxy S26',
+            category=self.category,
+            brand='Samsung',
+            description='Current official product without a real photo.',
+            image='products/old_products_tile_999.jpg',
+        )
+        Product.objects.create(
+            name='Recent unrelated photo product',
+            category=self.category,
+            brand='OtherBrand',
+            description='Another catalog product with a real photo.',
+            image='products/recent-unrelated.jpg',
+        )
+
+        response = self.client.get(reverse('brand_list'))
+        names = [item['name'] for item in response.context['image_items']]
+        self.assertLess(
+            names.index('Recent unrelated photo product'),
+            names.index('Galaxy S26'),
+        )
 
     def test_text_tiles_are_not_rendered_as_product_photos(self):
         product = Product.objects.create(
@@ -902,6 +926,54 @@ class ChatEndpointTests(TestCase):
         self.assertIn('html', response.json())
 
     @patch('apps.core.views.enhance_answer')
+    def test_general_tech_question_uses_ai(self, mocked_enhance):
+        mocked_enhance.return_value = ai_answer(
+            kind='answer',
+            title='SSD vs HDD',
+            summary=(
+                'An SSD uses flash memory and has no moving parts, while an HDD '
+                'uses spinning magnetic platters.'
+            ),
+            steps=[],
+            steps_title='',
+            difficulty='',
+        )
+
+        response = self.post_message(
+            'What is the difference between SSD and HDD?'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            mocked_enhance.call_args.args[0],
+            'What is the difference between SSD and HDD?',
+        )
+        html = response.json()['html']
+        self.assertIn('SSD vs HDD', html)
+        self.assertIn('An SSD uses flash memory', html)
+        self.assertNotIn('No exact match', html)
+        self.assertNotIn('Troubleshooting guide', html)
+
+    @patch('apps.core.gemini.ask_gemini')
+    def test_off_topic_question_gets_techfix_refusal(self, mocked_ask):
+        mocked_ask.return_value = {
+            'is_tech': False,
+            'title': '',
+            'summary': 'I focus on technology and gadget questions.',
+            'steps': [],
+            'difficulty': '',
+            'safety': '',
+        }
+
+        response = self.post_message('What is the weather tomorrow?')
+
+        self.assertEqual(response.status_code, 200)
+        html = response.json()['html']
+        self.assertIn('TechFix only', html)
+        self.assertIn('I focus on technology and gadget questions.', html)
+        self.assertNotIn('No exact match', html)
+
+    @patch('apps.core.views.enhance_answer')
     def test_product_answer_renders_catalog_details(self, mocked_enhance):
         from .models import Category, Product
 
@@ -926,14 +998,15 @@ class ChatEndpointTests(TestCase):
         response = self.post_message('Tell me about Test Phone')
 
         self.assertEqual(response.status_code, 200)
+        mocked_enhance.assert_not_called()
         html = response.json()['html']
         self.assertIn('TestBrand', html)
         self.assertIn('₱1,499.99', html)
         self.assertNotIn('$1,499.99', html)
-        self.assertNotIn('Stock', html)
+        self.assertIn('Stock: 3 units available.', html)
         self.assertIn('RAM: 8GB', html)
         self.assertIn('View product', html)
-        self.assertIn('data-chat-prompt="How do I reset it?"', html)
+        self.assertNotIn('data-chat-prompt="How do I reset it?"', html)
 
 
 class StrictAssistantResultsTests(TestCase):
@@ -1020,6 +1093,54 @@ class StrictAssistantResultsTests(TestCase):
         self.assertEqual(answer['kind'], 'product')
         self.assertIn('No price is listed in the TechFix catalog.', answer['summary'])
         self.assertNotIn('₱', answer['summary'])
+
+    def test_general_tech_question_is_not_a_catalog_result(self):
+        answer = build_answer('What is 5G?')
+
+        self.assertEqual(answer['kind'], 'answer')
+        self.assertFalse(answer.get('strict'))
+        self.assertEqual(answer['steps'], [])
+        self.assertEqual(answer['matches']['products'], [])
+        self.assertEqual(answer['matches']['accessories'], [])
+
+    def test_advice_question_is_not_troubleshooting(self):
+        answer = build_answer('How do I choose a TV?')
+
+        self.assertEqual(answer['kind'], 'answer')
+        self.assertEqual(answer['steps'], [])
+        self.assertNotEqual(answer['badge'], 'Troubleshooting guide')
+
+    def test_battery_concept_is_not_troubleshooting(self):
+        answer = build_answer('What is battery drain?')
+
+        self.assertEqual(answer['kind'], 'answer')
+        self.assertEqual(answer['steps'], [])
+
+    def test_component_concept_is_not_a_missing_catalog_model(self):
+        answer = build_answer('What is the RTX 5090?')
+
+        self.assertEqual(answer['kind'], 'answer')
+        self.assertNotEqual(answer['badge'], 'No exact match')
+
+    def test_show_me_query_returns_catalog_results(self):
+        answer = build_answer('Show me phones')
+
+        self.assertEqual(answer['kind'], 'results')
+        names = {item.name for item in answer['matches']['products']}
+        self.assertIn('iPhone 17', names)
+        self.assertIn('Samsung Galaxy S25 Ultra', names)
+
+    def test_non_tech_issue_is_not_given_local_repair_steps(self):
+        answer = build_answer('My car will not start')
+
+        self.assertEqual(answer['kind'], 'answer')
+        self.assertEqual(answer['steps'], [])
+
+    def test_repair_question_keeps_local_steps(self):
+        answer = build_answer('How do I fix my laptop that will not turn on?')
+
+        self.assertEqual(answer['badge'], 'Troubleshooting guide')
+        self.assertGreaterEqual(len(answer['steps']), 3)
 
     @patch('apps.core.views.enhance_answer')
     def test_product_question_uses_exact_catalog_match(self, mocked_enhance):

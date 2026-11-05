@@ -624,9 +624,9 @@ def _library_image_search(qs, query):
 
 _LIBRARY_FEATURED_PRODUCTS = (
     ('samsung', 'galaxy s26'),
+    ('samsung', 'galaxy s26+'),
     ('apple', 'iphone 18 pro'),
-    ('redmagic', 'redmagic 11s pro'),
-    ('realme', 'realme gt 8 pro'),
+    ('apple', 'iphone 17e'),
 )
 
 
@@ -655,7 +655,9 @@ def _get_library_images(query=''):
             'icon': product.display_icon,
             'tint': product.display_tint,
             'url': reverse('product_detail', args=[product.pk]),
-            '_featured_order': featured_order.get(key),
+            '_featured_order': (
+                featured_order.get(key) if product.has_real_photo else None
+            ),
             '_original_order': len(items),
         })
     for accessory in accessories.order_by('-created_at', '-pk').iterator():
@@ -670,12 +672,12 @@ def _get_library_images(query=''):
             '_featured_order': None,
             '_original_order': len(items),
         })
-    items.sort(key=lambda item: (
-        0 if item['_featured_order'] is not None else 1,
-        item['_featured_order']
-        if item['_featured_order'] is not None
-        else item['_original_order'],
-    ))
+    def sort_key(item):
+        if item['_featured_order'] is not None:
+            return (0, item['_featured_order'], item['_original_order'])
+        return (1, 0 if item['image_url'] else 1, item['_original_order'])
+
+    items.sort(key=sort_key)
     for item in items:
         item.pop('_featured_order')
         item.pop('_original_order')

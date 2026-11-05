@@ -17,11 +17,13 @@ into over under about after before during while when where who whom which what
 why how is are was were be been being am do does did doing done have has had
 having can could should would will shall may might must i me my mine we us our
 you your he him his she her it its they them their this that these those there
-here not no yes nor too very really just only also even still again ever never
+here not no yes nor any all some each every other another more most few many
+both either neither too very really just only also even still again ever never
 always sometimes now once please help someone tell know want need like get got
 gets make makes made use using used try trying tried fix fixes fixed repair
 repairs solution solutions troubleshoot troubleshooting problem problems issue
 issues keeps keep kept starts started start stops stopped stop working works
+show browse search list see good great
 work anymore suddenly wrong pro max plus ultra mini lite smart wireless wired
 bluetooth gen series edition new latest price cost spec specs specification
 specifications feature features review reviews compare buy purchase much best
@@ -231,6 +233,82 @@ _TROUBLE_WORDS = (
     'fix', 'problem', 'issue', 'trouble', 'wrong', 'broken', 'fail', 'error',
     'stuck', 'not ', 'wont', 'cant', 'cannot', 'dead', 'freeze', 'crash',
     'slow', 'lag', 'drain', 'overheat', 'repair', 'why', 'how', 'help',
+)
+
+_TECH_STANDARD_TOKENS = frozenset({
+    '2g', '3g', '4g', '5g', '6g', 'lte', 'wifi', 'wifi6', 'wifi6e', 'wifi7',
+    'bluetooth', 'usb', 'usba', 'usbc', 'hdmi', 'displayport', 'thunderbolt',
+    'ethernet', '4k', '8k', '1080p', '1440p', '2160p', '60hz', '90hz',
+    '120hz', '144hz', '165hz', '240hz', 'ddr3', 'ddr4', 'ddr5', 'lpddr4',
+    'lpddr5', 'pcie3', 'pcie4', 'pcie5', 'nvme', 'sata', 'ip67', 'ip68',
+    'oled', 'lcd', 'led', 'qled', 'miniled', 'microled', 'amoled', 'ips',
+    'va', 'tn', 'hdr', 'hdr10', 'dolby', 'atmos',
+})
+
+_CATALOG_QUERY_RE = re.compile(
+    r"\b(?:price|pricing|cost|how much|stock|in stock|out of stock|"
+    r"available|availability|do you (?:have|sell|carry|stock)|show me|"
+    r"list (?:all|the|your)|catalog|product page|"
+    r"where (?:can|do|to) (?:i )?buy|buy (?:it|this|one|now))\b",
+    re.IGNORECASE,
+)
+
+_COMPONENT_MODEL_RE = re.compile(
+    r"\b(?:rtx|gtx|geforc\w*|radeon|rx\s?\d{3,4}|"
+    r"m[1-9](?:\s+(?:pro|max|ultra))?|"
+    r"a\d{2,4}(?:\s+(?:bionic|pro|fusion))?|"
+    r"snapdragon|exynos|dimensity|tensor|ryzen|threadripper|"
+    r"core\s+i[3-9]|xeon|arc\s+a\d+|iris\s+xe)\b",
+    re.IGNORECASE,
+)
+
+_QUESTION_LIKE_RE = re.compile(
+    r"^\s*(?:what|why|how|which|who|whom|whose|when|where|is|are|am|do|"
+    r"does|did|can|could|should|would|will|tell|explain|define|describe|"
+    r"find|look|looking|recommend|suggest|best|cheapest|top)\b"
+    r"|\b(?:difference between|compared? (?:to|with)|versus|vs\.?|"
+    r"better than|which (?:one )?is better|what should i (?:buy|get))\b",
+    re.IGNORECASE,
+)
+
+_COMPARISON_RE = re.compile(
+    r"\b(?:difference between|compare|comparison|versus|vs\.?|better than|"
+    r"which (?:one )?is better)\b",
+    re.IGNORECASE,
+)
+
+_REPAIR_ACTION_RE = re.compile(r"\b(?:fix|repair|troubleshoot)\b", re.IGNORECASE)
+
+_REPAIR_PROBLEM_RE = re.compile(
+    r"\b(?:not working|won'?t|wont|can'?t|cannot|doesn'?t|does not|"
+    r"isn'?t|is not|problem with|issues? with|wrong with|"
+    r"keeps? (?:crashing|freezing|restarting|disconnecting)|stuck|"
+    r"unresponsive|no (?:sound|audio|signal|display|power)|black screen|"
+    r"slow|laggy|drain(?:s|ing)?|overheat(?:s|ing)?|dead|broken|"
+    r"freez(?:e|es|ing)|crash(?:es|ing)?|error|fail(?:s|ing|ed)?|"
+    r"flicker(?:s|ing)?)\b",
+    re.IGNORECASE,
+)
+
+_GREETING_RE = re.compile(
+    r"^\s*(?:hi|hello|hey|greetings|good (?:morning|afternoon|evening)|"
+    r"thanks|thank you)\b",
+    re.IGNORECASE,
+)
+
+_TECH_CONTEXT_RE = re.compile(
+    r"\b(?:phones?|iphones?|androids?|laptops?|notebooks?|tablets?|ipads?|"
+    r"tvs?|televisions?|monitors?|screens?|displays?|computers?|pcs?|"
+    r"desktops?|macbooks?|imacs?|windows|chromeos|linux|cameras?|"
+    r"printers?|routers?|modems?|networks?|wi-?fi|internets?|speakers?|"
+    r"headphones?|headsets?|earbuds?|earphones?|watches?|smartwatches?|"
+    r"consoles?|playstations?|xbox|nintendos?|projectors?|scanners?|"
+    r"keyboards?|mice|mouse|controllers?|gamepads?|chargers?|charging|"
+    r"ssds?|hdds?|drives?|storage|memory|ram|cpus?|gpus?|motherboards?|"
+    r"usb|hdmi|cables?|adapters?|adaptors?|docks?|hubs?|devices?|"
+    r"gadgets?|accessor(?:y|ies)|firmware|software|apps?|techfix|"
+    r"bluetooth)\b",
+    re.IGNORECASE,
 )
 
 
@@ -523,11 +601,22 @@ def _score_accessory(accessory, query_tokens, query_phrase):
     return score, matched, accessory
 
 
+def _has_phrase(text, phrases):
+    return any(
+        re.search(r'(?<!\w)%s(?!\w)' % re.escape(word.strip()), text)
+        for word in phrases
+        if word.strip()
+    )
+
+
 def _detect_intent(query):
     text = _normalize(query)
-    if any(word in text for word in _PRODUCT_LOOKUP_WORDS):
+    if _has_phrase(text, _PRODUCT_LOOKUP_WORDS + (
+        'specs', 'specification', 'specifications', 'features',
+        'prices', 'costs', 'reviews', 'buying',
+    )):
         return 'lookup'
-    if any(word in text for word in _TROUBLE_WORDS):
+    if _has_phrase(text, _TROUBLE_WORDS):
         return 'troubleshoot'
     return 'general'
 
@@ -538,6 +627,145 @@ def _detect_topic(query):
         if any(re.search(pattern, text) for pattern in patterns):
             return topic
     return 'default'
+
+
+def _looks_like_repair_request(query):
+    text = _normalize(query)
+    if _REPAIR_ACTION_RE.search(text):
+        return True
+    tokens = _tokens(text)
+    has_device = bool(tokens & _DEVICE_TOKENS)
+    if re.search(r"\b(?:problem|issues?|wrong)\s+with\b", text):
+        if re.search(r"\bmy\b", text) or has_device:
+            return True
+    if re.search(r"\bwhy\s+(?:is|are|does|do)\s+my\b", text):
+        return True
+    if _REPAIR_PROBLEM_RE.search(text):
+        if re.search(r"\bmy\b", text) or has_device:
+            return True
+    return False
+
+
+def _family_tokens(products, accessories, brand_tokens):
+    family = set()
+    brand_keys = set(brand_tokens)
+    for item in list(products) + list(accessories):
+        for token in _token_list(getattr(item, 'name', '')):
+            if (
+                len(token) >= 3
+                and token.isalpha()
+                and token not in _GENERIC_TOKENS
+                and token not in _MODEL_WORDS
+                and token not in _ISSUE_SIGNAL_TOKENS
+                and token not in brand_keys
+                and not _COMPONENT_MODEL_RE.search(token)
+            ):
+                family.add(token)
+                break
+    return family
+
+
+def _looks_like_specific_model(
+    query_tokens, query_identity, identity_tokens, brand_tokens, family_tokens
+):
+    if not query_identity:
+        return False
+    has_marker = bool(query_tokens & _MODEL_WORDS) or any(
+        any(char.isdigit() for char in token) for token in query_tokens
+    )
+    if has_marker and (
+        query_tokens & family_tokens or query_tokens & set(brand_tokens)
+    ):
+        return True
+    for token in query_tokens:
+        if (
+            token not in _TECH_STANDARD_TOKENS
+            and token in identity_tokens
+            and any(char.isdigit() for char in token)
+        ):
+            return True
+    return False
+
+
+def _has_exact_catalog_identity(
+    query_identity, products, accessories, brand_words
+):
+    if not query_identity:
+        return False
+    for item in products:
+        if _product_identity_tokens(item, brand_words) == query_identity:
+            return True
+    for item in accessories:
+        if _accessory_identity_tokens(item, brand_words) == query_identity:
+            return True
+    return False
+
+
+def _is_general_tech_question(
+    query, query_tokens, query_identity, identity_tokens, brand_tokens,
+    family_tokens, products, accessories, brand_words,
+):
+    text = _normalize(query)
+    if not text:
+        return False
+    if _GREETING_RE.search(text):
+        return True
+    if _CATALOG_QUERY_RE.search(text):
+        return False
+    if _looks_like_repair_request(text):
+        return False
+    if not _QUESTION_LIKE_RE.search(text):
+        return False
+    if _COMPARISON_RE.search(text):
+        return True
+    if _has_exact_catalog_identity(
+        query_identity, products, accessories, brand_words
+    ):
+        return False
+    if _COMPONENT_MODEL_RE.search(text) and not (
+        query_tokens & family_tokens
+    ):
+        return True
+    if _looks_like_specific_model(
+        query_tokens, query_identity, identity_tokens, brand_tokens,
+        family_tokens,
+    ):
+        return False
+    return True
+
+
+def _has_tech_context(query, query_tokens, brand_tokens):
+    if _TECH_CONTEXT_RE.search(_normalize(query)):
+        return True
+    return bool(query_tokens & set(brand_tokens))
+
+
+def _general_tech_answer():
+    return {
+        'kind': 'answer',
+        'badge': 'Technology help',
+        'title': '',
+        'summary': (
+            'I can answer that using general technology knowledge, but the AI '
+            'knowledge service is unavailable right now. Please try again, or '
+            'ask me about TechFix catalog products, prices, stock, or repair '
+            'guides.'
+        ),
+        'first_step': '',
+        'steps': [],
+        'steps_title': '',
+        'difficulty': '',
+        'category': '',
+        'product': None,
+        'accessory': None,
+        'video_url': '',
+        'safety': '',
+        'suggestions': [],
+        'ai': False,
+        'strict': False,
+        'matches': {'products': [], 'accessories': [], 'solutions': []},
+        'sources': [],
+    }
 
 
 def _is_price_query(query):
@@ -974,6 +1202,18 @@ def build_answer(query):
     for token in query_tokens:
         if token in brand_tokens and brand_tokens[token] not in brand_hits:
             brand_hits.append(brand_tokens[token])
+
+    family_tokens = _family_tokens(products, accessories, brand_tokens)
+    if _is_general_tech_question(
+        query, query_tokens, query_identity, identity_tokens, brand_tokens,
+        family_tokens, products, accessories, brand_words,
+    ):
+        return _general_tech_answer()
+
+    if issue_signal and not _has_tech_context(
+        query, query_tokens, brand_tokens
+    ):
+        return _general_tech_answer()
 
     identity_terms = query_tokens & identity_tokens
     identity_mode = 'all'
