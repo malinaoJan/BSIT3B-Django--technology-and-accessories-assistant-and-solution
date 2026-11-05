@@ -47,8 +47,9 @@ _SYSTEM_PROMPT = (
     'unrelated to technology (for example recipes, sports, politics, or creative writing). For '
     'those, politely explain that you focus on technology and invite a tech question; do not '
     'provide the requested non-tech answer.\n'
-    '- If the user asks a follow-up, use the conversation history to resolve it and do not repeat '
-    'information unnecessarily.\n'
+    '- For a related follow-up, use the conversation history only to understand its context. '
+    'Answer the newest question directly and do not repeat or summarize the previous answer '
+    'unless the user asks you to.\n'
     '- Always return valid JSON matching the schema.'
 )
 
@@ -126,8 +127,9 @@ def _build_prompt(question, sources, history_included=False):
     lines = ['User question: %s' % question, '']
     if history_included:
         lines.append(
-            'The earlier conversation is above. Use it to resolve follow-up '
-            'questions. Do not repeat earlier answers unless the user asks you to.'
+            'The earlier conversation is context only. Answer only the user\'s latest question. '
+            'Use prior messages to understand what they mean, but do not repeat or summarize '
+            'earlier answers unless the user asks.'
         )
         lines.append('')
     if sources:

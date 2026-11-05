@@ -23,6 +23,31 @@
 
     <p class="assistant-text">{{ answer.summary }}</p>
 
+    {% if answer.mentioned_products %}
+    <div class="assistant-mentioned-products">
+      <div class="assistant-result-head">
+        <span>Products mentioned in this answer</span>
+      </div>
+      <div class="assistant-result-list">
+        {% for item in answer.mentioned_products %}
+        <a class="assistant-result assistant-mentioned-product" href="{% url 'product_detail' item.id %}">
+          {% if item.image_url %}
+          <img class="assistant-result-photo" src="{{ item.image_url }}" alt="{{ item.name }}" loading="lazy">
+          {% else %}
+          <span class="assistant-result-icon {{ item.tint }}"><i class="{{ item.icon }}"></i></span>
+          {% endif %}
+          <span class="assistant-result-copy">
+            <span class="assistant-result-name">{{ item.name }}</span>
+            <span class="assistant-result-meta">{{ item.brand }}{% if item.category %} · {{ item.category }}{% endif %}</span>
+            {% if item.price %}<span class="assistant-result-price">₱{{ item.price|floatformat:2|intcomma }}</span>{% endif %}
+          </span>
+          <span class="assistant-result-link-label">View product <i class="fa-solid fa-chevron-right" aria-hidden="true"></i></span>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
     {% if answer.kind == 'results' and answer.matches %}
     <div class="assistant-results">
       {% if answer.matches.products %}
@@ -34,12 +59,17 @@
         <div class="assistant-result-list">
           {% for item in answer.matches.products %}
           <a class="assistant-result" href="{% url 'product_detail' item.id %}">
-            <span class="assistant-result-icon"><i class="fa-solid fa-box-open"></i></span>
+            {% if item.image_url %}
+            <img class="assistant-result-photo" src="{{ item.image_url }}" alt="{{ item.name }}" loading="lazy">
+            {% else %}
+            <span class="assistant-result-icon {{ item.tint }}"><i class="{{ item.icon }}"></i></span>
+            {% endif %}
             <span class="assistant-result-copy">
               <span class="assistant-result-name">{{ item.name }}</span>
-              <span class="assistant-result-meta">{{ item.brand }}{% if item.category %} · {{ item.category }}{% endif %}{% if item.price %} · ₱{{ item.price|floatformat:2|intcomma }}{% endif %}</span>
+              <span class="assistant-result-meta">{{ item.brand }}{% if item.category %} · {{ item.category }}{% endif %}</span>
+              {% if item.price %}<span class="assistant-result-price">₱{{ item.price|floatformat:2|intcomma }}</span>{% endif %}
             </span>
-            <i class="fa-solid fa-chevron-right"></i>
+            <span class="assistant-result-link-label">View details <i class="fa-solid fa-chevron-right" aria-hidden="true"></i></span>
           </a>
           {% endfor %}
         </div>
@@ -55,12 +85,17 @@
         <div class="assistant-result-list">
           {% for item in answer.matches.accessories %}
           <a class="assistant-result" href="{% url 'accessory_detail' item.id %}">
-            <span class="assistant-result-icon"><i class="fa-solid fa-plug"></i></span>
+            {% if item.image_url %}
+            <img class="assistant-result-photo" src="{{ item.image_url }}" alt="{{ item.name }}" loading="lazy">
+            {% else %}
+            <span class="assistant-result-icon {{ item.tint }}"><i class="{{ item.icon }}"></i></span>
+            {% endif %}
             <span class="assistant-result-copy">
               <span class="assistant-result-name">{{ item.name }}</span>
-              <span class="assistant-result-meta">{{ item.brand }}{% if item.category %} · {{ item.category }}{% endif %}{% if item.price %} · ₱{{ item.price|floatformat:2|intcomma }}{% endif %}</span>
+              <span class="assistant-result-meta">{{ item.brand }}{% if item.category %} · {{ item.category }}{% endif %}</span>
+              {% if item.price %}<span class="assistant-result-price">₱{{ item.price|floatformat:2|intcomma }}</span>{% endif %}
             </span>
-            <i class="fa-solid fa-chevron-right"></i>
+            <span class="assistant-result-link-label">View details <i class="fa-solid fa-chevron-right" aria-hidden="true"></i></span>
           </a>
           {% endfor %}
         </div>
@@ -109,7 +144,6 @@
 
     {% if answer.kind == 'solution' %}
     <div class="assistant-actions">
-      {% if answer.product %}<a href="{% url 'product_detail' answer.product.id %}" class="btn btn-outline-primary">View device</a>{% endif %}
       <a href="{% url 'solution_list' %}" class="btn btn-outline-primary">Browse repair guides</a>
       {% if answer.video_url %}<a href="{{ answer.video_url }}" target="_blank" rel="noopener" class="btn btn-outline-primary"><i class="fa-brands fa-youtube me-1"></i>Video guide</a>{% endif %}
     </div>
@@ -123,16 +157,24 @@
       {% if answer.product.price %}
       <span class="assistant-spec"><b>Price</b> ₱{{ answer.product.price|floatformat:2|intcomma }}</span>
       {% endif %}
+      {% if answer.product.stock != None %}<span class="assistant-spec"><b>Stock</b> {% if answer.product.stock > 0 %}{{ answer.product.stock }} available{% else %}Out of stock{% endif %}</span>{% endif %}
     </div>
     {% if answer.product.specs %}
     <ul class="assistant-spec-list">
       {% for spec in answer.product.specs %}<li>{{ spec }}</li>{% endfor %}
     </ul>
     {% endif %}
-    <div class="assistant-actions"><a href="{% url 'product_detail' answer.product.id %}" class="btn btn-outline-primary">View product</a></div>
     {% endif %}
 
     {% if answer.kind == 'accessory' and answer.accessory %}
+    <a class="assistant-featured-product" href="{% url 'accessory_detail' answer.accessory.id %}">
+      {% if answer.accessory.image_url %}
+      <img src="{{ answer.accessory.image_url }}" alt="{{ answer.accessory.name }}" loading="lazy">
+      {% else %}
+      <span class="assistant-featured-product-placeholder {{ answer.accessory.tint }}"><i class="{{ answer.accessory.icon }}"></i></span>
+      {% endif %}
+      <span class="assistant-featured-product-caption">View accessory picture and details</span>
+    </a>
     {% if answer.accessory.source_url %}<p><a href="{{ answer.accessory.source_url }}" target="_blank" rel="noopener noreferrer">Official product page <i class="fa-solid fa-arrow-up-right-from-square ms-1" aria-hidden="true"></i></a></p>{% endif %}
     <div class="assistant-specs">
       {% if answer.accessory.brand %}<span class="assistant-spec"><b>Brand</b> {{ answer.accessory.brand }}</span>{% endif %}
@@ -140,6 +182,7 @@
       {% if answer.accessory.price %}
       <span class="assistant-spec"><b>Price</b> ₱{{ answer.accessory.price|floatformat:2|intcomma }}</span>
       {% endif %}
+      {% if answer.accessory.stock != None %}<span class="assistant-spec"><b>Stock</b> {% if answer.accessory.stock > 0 %}{{ answer.accessory.stock }} available{% else %}Out of stock{% endif %}</span>{% endif %}
     </div>
     {% if answer.accessory.compatibility %}<p class="assistant-text"><strong>Compatibility:</strong> {{ answer.accessory.compatibility }}</p>{% endif %}
     <div class="assistant-actions"><a href="{% url 'accessory_detail' answer.accessory.id %}" class="btn btn-outline-primary">View accessory</a></div>

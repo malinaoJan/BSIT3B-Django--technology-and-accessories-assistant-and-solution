@@ -8,7 +8,7 @@ from django.test import Client, SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
 from .assistant import build_answer
-from .gemini import _extract_text, _parse_gemini_data, enhance_answer
+from .gemini import _build_prompt, _extract_text, _parse_gemini_data, enhance_answer
 from .models import Accessory, Category, Product, Review, Solution
 from .views import CHAT_SESSION_KEY, _context_query
 from apps.users.models import PhoneProfile
@@ -975,6 +975,7 @@ class ChatEndpointTests(TestCase):
 
     @patch('apps.core.views.enhance_answer')
     def test_product_answer_renders_catalog_details(self, mocked_enhance):
+        self.client.logout()
         from .models import Category, Product
 
         category = Category.objects.create(name='Phones')
@@ -986,6 +987,7 @@ class ChatEndpointTests(TestCase):
             specifications='RAM: 8GB, Storage: 128GB',
             price='1499.99',
             stock_quantity=3,
+            image='products/test-phone.jpg',
         )
         mocked_enhance.return_value = ai_answer(
             kind='product',
@@ -1006,7 +1008,42 @@ class ChatEndpointTests(TestCase):
         self.assertIn('Stock: 3 units available.', html)
         self.assertIn('RAM: 8GB', html)
         self.assertIn('View product', html)
+        self.assertIn('/media/products/test-phone.jpg', html)
+        self.assertIn('Products mentioned in this answer', html)
+        self.assertEqual(
+            html.count('class="assistant-result assistant-mentioned-product"'),
+            1,
+        )
         self.assertNotIn('data-chat-prompt="How do I reset it?"', html)
+
+    def test_product_search_results_show_photos_and_placeholders(self):
+        self.client.logout()
+        category = Category.objects.create(name='Smartphones')
+        Product.objects.create(
+            name='Phone with photo',
+            category=category,
+            brand='PhotoBrand',
+            description='A phone with a catalog photo.',
+            price='249.99',
+            image='products/phone-with-photo.jpg',
+        )
+        Product.objects.create(
+            name='Phone without photo',
+            category=category,
+            brand='PlaceholderBrand',
+            description='A phone using the catalog placeholder.',
+        )
+
+        response = self.post_message('Show me phones')
+
+        self.assertEqual(response.status_code, 200)
+        html = response.json()['html']
+        self.assertIn('assistant-result-photo', html)
+        self.assertIn('/media/products/phone-with-photo.jpg', html)
+        self.assertIn('assistant-result-icon', html)
+        self.assertIn('assistant-result-price', html)
+        self.assertIn('View details', html)
+        self.assertIn('Phone without photo', html)
 
 
 class StrictAssistantResultsTests(TestCase):
@@ -1130,6 +1167,60 @@ class StrictAssistantResultsTests(TestCase):
         self.assertIn('iPhone 17', names)
         self.assertIn('Samsung Galaxy S25 Ultra', names)
 
+    def test_phone_recommendation_returns_one_specific_answer(self):
+        recommended = Product.objects.create(
+            name='Spec Leader Phone',
+            category=self.category,
+            brand='TestBrand',
+            description='A well-equipped phone.',
+            specifications=(
+                'Snapdragon 8 Elite Gen 5, 16GB RAM / 512GB storage, '
+                '120Hz OLED, 50MP camera, 6000mAh battery'
+            ),
+            price='499.00',
+        )
+        Product.objects.create(
+            name='Basic Phone',
+            category=self.category,
+            brand='TestBrand',
+            description='An entry-level phone.',
+            specifications='8GB RAM / 128GB storage',
+            price='199.00',
+        )
+
+        answer = build_answer(
+            'Can you recommend a phone that has good specs? '
+            'Can you show me those products?'
+        )
+
+        self.assertEqual(answer['kind'], 'product')
+        self.assertEqual(answer['badge'], 'Recommended phone')
+        self.assertEqual(answer['product'], recommended)
+        self.assertEqual(answer['title'], 'My recommendation: Spec Leader Phone')
+        self.assertIn('I recommend Spec Leader Phone', answer['summary'])
+        self.assertIn('Snapdragon 8 Elite Gen 5', answer['summary'])
+        self.assertIn('Listed price: ₱499.00', answer['summary'])
+
+        response = self.client.post(
+            reverse('assistant_chat'),
+            data=json.dumps({
+                'message': (
+                    'Can you recommend a phone that has good specs? '
+                    'Can you show me those products?'
+                ),
+            }),
+            content_type='application/json',
+        )
+        html = response.json()['html']
+        self.assertIn('Recommended phone', html)
+        self.assertIn('My recommendation: Spec Leader Phone', html)
+        self.assertIn('I recommend Spec Leader Phone', html)
+        self.assertIn('Snapdragon 8 Elite Gen 5', html)
+        self.assertIn('View product', html)
+        self.assertIn('Products mentioned in this answer', html)
+        self.assertNotIn('Basic Phone', html)
+        self.assertNotIn('assistant-results', html)
+
     def test_non_tech_issue_is_not_given_local_repair_steps(self):
         answer = build_answer('My car will not start')
 
@@ -1219,6 +1310,93 @@ class StrictAssistantResultsTests(TestCase):
         self.assertIn('iPhone 17 Pro Max', html)
         self.assertNotIn('Samsung Galaxy S25', html)
 
+    @patch('apps.core.views.enhance_answer')
+    def test_ai_answer_links_only_products_named_in_its_response(self, mocked_enhance):
+        self.client.logout()
+        named_phone = Product.objects.create(
+            name='Samsung Galaxy S24 Ultra',
+            category=self.category,
+            brand='Samsung',
+            description='Samsung flagship phone.',
+        )
+        named_iphone = Product.objects.create(
+            name='iPhone 15 Pro Max',
+            category=self.category,
+            brand='Apple',
+            description='Apple flagship phone.',
+        )
+        unrelated_phone = Product.objects.create(
+            name='Google Pixel 9 Pro',
+            category=self.category,
+            brand='Google',
+            description='A phone not mentioned in the answer.',
+        )
+        mocked_enhance.return_value = ai_answer(
+            kind='answer',
+            title='Top smartphone recommendations',
+            summary=(
+                'The Samsung Galaxy S24 Ultra and iPhone 15 Pro Max are '
+                'both strong choices.'
+            ),
+        )
+
+        response = self.client.post(
+            reverse('assistant_chat'),
+            data=json.dumps({'message': 'My phone will not charge'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        mocked_enhance.assert_called_once()
+        html = response.json()['html']
+        self.assertIn('Samsung Galaxy S24 Ultra', html)
+        self.assertIn('iPhone 15 Pro Max', html)
+        self.assertNotIn(unrelated_phone.name, html)
+        self.assertEqual(
+            html.count('class="assistant-result assistant-mentioned-product"'),
+            2,
+        )
+        self.assertIn(reverse('product_detail', args=[named_phone.pk]), html)
+        self.assertIn(reverse('product_detail', args=[named_iphone.pk]), html)
+
+    @patch('apps.core.views.build_answer')
+    @patch('apps.core.views.enhance_answer')
+    def test_solution_shows_selected_product_once(
+        self, mocked_enhance, mocked_build
+    ):
+        self.client.logout()
+        mocked_build.return_value = {
+            'kind': 'solution',
+            'product': self.iphone_17,
+            'strict': False,
+            'sources': [],
+        }
+        mocked_enhance.return_value = ai_answer(
+            kind='solution',
+            title='iPhone 17 charging help',
+            summary='Try restarting the iPhone 17 before testing the charger.',
+            steps=['Restart the iPhone 17.'],
+        )
+
+        response = self.client.post(
+            reverse('assistant_chat'),
+            data=json.dumps({'message': 'My iPhone 17 will not charge'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        html = response.json()['html']
+        self.assertEqual(
+            html.count('class="assistant-result assistant-mentioned-product"'),
+            1,
+        )
+        self.assertNotIn('assistant-related-product', html)
+        self.assertNotIn('View device', html)
+        self.assertEqual(
+            html.count(reverse('product_detail', args=[self.iphone_17.pk])),
+            1,
+        )
+
 
 class ContextQueryTests(SimpleTestCase):
     def test_follow_up_how_much_uses_previous_question(self):
@@ -1239,6 +1417,19 @@ class ContextQueryTests(SimpleTestCase):
 
 
 class GeminiParsingTests(SimpleTestCase):
+    def test_follow_up_prompt_answers_only_the_latest_question(self):
+        prompt = _build_prompt(
+            'How much?',
+            [],
+            history_included=True,
+        )
+
+        self.assertIn('Answer only the user\'s latest question.', prompt)
+        self.assertIn(
+            'do not repeat or summarize earlier answers unless the user asks.',
+            prompt,
+        )
+
     def test_extract_text_ignores_thought_parts(self):
         data = {
             'candidates': [{

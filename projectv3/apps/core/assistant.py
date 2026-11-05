@@ -253,6 +253,11 @@ _CATALOG_QUERY_RE = re.compile(
     re.IGNORECASE,
 )
 
+_RECOMMENDATION_RE = re.compile(
+    r'\b(?:recommend\w*|suggest\w*|best|top)\b',
+    re.IGNORECASE,
+)
+
 _COMPONENT_MODEL_RE = re.compile(
     r"\b(?:rtx|gtx|geforc\w*|radeon|rx\s?\d{3,4}|"
     r"m[1-9](?:\s+(?:pro|max|ultra))?|"
@@ -582,6 +587,47 @@ def _score_product(product, query_tokens, query_phrase):
     if any(any(char.isdigit() for char in token) and token in name_tokens for token in matched):
         score += 5
     return score, matched, product
+
+
+def _recommendation_score(product):
+    specs = ' '.join(product.spec_list).lower()
+    processor_rank = 0
+    for pattern, rank in (
+        (r'\bsnapdragon\s+8\s+elite\s+gen\s+5\b', 9),
+        (r'\bdimensity\s+9500\b', 9),
+        (r'\ba19\s+pro\b', 9),
+        (r'\bsnapdragon\s+8\s+elite\b', 8),
+        (r'\bdimensity\s+9400\b', 8),
+        (r'\ba18\s+pro\b', 8),
+        (r'\bsnapdragon\s+8\s+gen\s+3\b', 7),
+        (r'\bdimensity\s+9300\b', 7),
+    ):
+        if re.search(pattern, specs):
+            processor_rank = rank
+            break
+    memory_pair = re.search(
+        r'\b(\d+)\s*gb\s*/\s*(\d+)\s*gb\b',
+        specs,
+    )
+    ram_match = re.search(r'\b(\d+)\s*gb\s*(?:ram|memory)\b', specs)
+    storage_match = re.search(
+        r'\b(?:storage|rom)\s*[:=]?\s*(\d+)\s*gb\b',
+        specs,
+    )
+    ram = int(ram_match.group(1)) if ram_match else 0
+    storage = int(storage_match.group(1)) if storage_match else 0
+    if memory_pair:
+        ram = max(ram, int(memory_pair.group(1)))
+        storage = max(storage, int(memory_pair.group(2)))
+    return (
+        processor_rank,
+        ram,
+        storage,
+        bool(re.search(r'\b(?:amoled|oled|ltpo|\d+\s*hz)\b', specs)),
+        bool(re.search(r'\b\d+\s*mp\b', specs)),
+        bool(re.search(r'\b\d{3,5}\s*mah\b', specs)),
+        len(product.spec_list),
+    )
 
 
 def _score_accessory(accessory, query_tokens, query_phrase):
@@ -1262,6 +1308,55 @@ def build_answer(query):
     ]
 
     accessory_type_tokens = _accessory_type_tokens(query)
+
+    if (
+        not issue_signal
+        and not query_identity
+        and device_tokens
+        and _RECOMMENDATION_RE.search(query)
+    ):
+        candidates = [
+            item for item in products
+            if _brand_matches(item, brand_hits)
+            and _device_match(item, device_tokens)
+            and item.spec_list
+        ]
+        if candidates:
+            selected = max(
+                candidates,
+                key=lambda item: (
+                    _recommendation_score(item),
+                    item.name.casefold(),
+                ),
+            )
+            answer = _product_answer(selected, query, intent, topic)
+            device_label = (
+                'phone' if 'phon' in device_tokens else 'product'
+            )
+            answer['badge'] = 'Recommended %s' % device_label
+            answer['title'] = 'My recommendation: %s' % selected.name
+            answer['summary'] = (
+                'For a %s with strong listed specifications, I recommend %s: '
+                '%s. %s %s'
+            ) % (
+                device_label,
+                selected.name,
+                '; '.join(selected.spec_list[:5]),
+                (
+                    'Listed price: ₱%s.' % selected.price
+                    if selected.price is not None
+                    else 'No price is listed in the catalog.'
+                ),
+                (
+                    'It is gaming-focused, so it is best suited to users who '
+                    'prioritize gaming performance.'
+                    if 'redmagic' in selected.name.casefold()
+                    else ''
+                ),
+            )
+            answer['strict'] = True
+            answer['sources'] = []
+            return answer
 
     if not issue_signal and query_identity:
         strict_products = [

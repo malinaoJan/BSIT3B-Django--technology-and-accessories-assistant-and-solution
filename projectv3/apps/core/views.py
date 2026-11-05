@@ -309,10 +309,14 @@ def _serialize_product(product):
         'name': product.name,
         'brand': product.brand,
         'category': product.category.name if product.category else '',
+        'description': product.description,
         'price': str(product.price) if product.price is not None else '',
         'source_url': product.source_url,
         'stock': product.stock_quantity,
         'specs': product.spec_list,
+        'image_url': product.image.url if product.has_real_photo else '',
+        'icon': product.display_icon,
+        'tint': product.display_tint,
     }
 
 
@@ -324,10 +328,14 @@ def _serialize_accessory(accessory):
         'name': accessory.name,
         'brand': accessory.brand,
         'category': accessory.category.name if accessory.category else '',
+        'description': accessory.description,
         'price': str(accessory.price) if accessory.price is not None else '',
         'source_url': accessory.source_url,
         'stock': accessory.stock_quantity,
         'compatibility': accessory.compatibility_notes,
+        'image_url': accessory.image.url if accessory.has_real_photo else '',
+        'icon': accessory.display_icon,
+        'tint': accessory.display_tint,
     }
 
 
@@ -361,6 +369,69 @@ def _serialize_matches(matches):
     }
 
 
+def _products_mentioned_in_answer(answer):
+    from .models import Product
+
+    text_parts = [
+        answer.get('title'),
+        answer.get('summary'),
+        answer.get('first_step'),
+    ]
+    steps = answer.get('steps') or []
+    if isinstance(steps, (list, tuple)):
+        text_parts.extend(steps)
+    answer_text = ' '.join(
+        str(part).strip() for part in text_parts if part
+    )
+    if (
+        not answer_text
+        or answer.get('kind') == 'results'
+        or answer.get('badge') == 'No exact match'
+    ):
+        return []
+
+    catalog_names = list(
+        Product.objects.order_by('pk').values_list('pk', 'name')
+    )
+    names_by_text = {}
+    for product_id, name in catalog_names:
+        normalized_name = (name or '').strip()
+        if normalized_name:
+            names_by_text.setdefault(normalized_name.casefold(), product_id)
+    if not names_by_text:
+        return []
+
+    alternatives = sorted(
+        (re.escape(name) for name in names_by_text),
+        key=len,
+        reverse=True,
+    )
+    product_pattern = re.compile(
+        r'(?<!\w)(' + '|'.join(alternatives) + r')(?!\w)',
+        re.IGNORECASE,
+    )
+    mentioned_ids = list(dict.fromkeys(
+        names_by_text[match.group(1).casefold()]
+        for match in product_pattern.finditer(answer_text)
+    ))
+    selected_product = answer.get('product')
+    selected_product_id = getattr(selected_product, 'pk', None)
+    if selected_product_id is not None:
+        mentioned_ids = [
+            selected_product_id,
+            *(
+                product_id for product_id in mentioned_ids
+                if product_id != selected_product_id
+            ),
+        ]
+    products = Product.objects.select_related('category').in_bulk(mentioned_ids)
+    return [
+        _serialize_product(products[product_id])
+        for product_id in mentioned_ids
+        if product_id in products
+    ]
+
+
 def _serialize_answer(answer):
     serialized = {
         'kind': str(answer.get('kind') or ''),
@@ -381,6 +452,7 @@ def _serialize_answer(answer):
         ],
         'ai': bool(answer.get('ai')),
         'notice': str(answer.get('notice') or ''),
+        'mentioned_products': _products_mentioned_in_answer(answer),
     }
     if serialized['kind'] == 'results':
         serialized['matches'] = _serialize_matches(answer.get('matches'))
