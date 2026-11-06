@@ -1,6 +1,10 @@
+import io
 import json
 import logging
+import mimetypes
+import os
 import re
+import uuid
 from datetime import datetime, timedelta
 
 from django.conf import settings
@@ -8,7 +12,8 @@ from django.contrib import messages
 from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.password_validation import validate_password
-from django.core.exceptions import ValidationError
+from django.core.exceptions import SuspiciousFileOperation, ValidationError
+from django.core.files.storage import default_storage
 from django.core.validators import validate_email
 from django.db import IntegrityError, transaction
 from django.db.models import Q
@@ -18,6 +23,7 @@ from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
+from django.utils.text import get_valid_filename
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_http_methods, require_POST
 
@@ -290,6 +296,36 @@ def _new_first(qs, legacy_names):
 CHAT_SESSION_KEY = 'techfix_chat_messages'
 MAX_CHAT_MESSAGES = 20
 MAX_CHAT_QUESTION_LENGTH = 1000
+MAX_CHAT_ATTACHMENTS = 5
+MAX_CHAT_ATTACHMENT_BYTES = 10 * 1024 * 1024
+MAX_CHAT_ATTACHMENT_TOTAL_BYTES = 25 * 1024 * 1024
+CHAT_ATTACHMENT_EXTENSIONS = frozenset({
+    '.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp',
+    '.pdf', '.txt', '.md', '.csv',
+    '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+    '.zip',
+})
+CHAT_IMAGE_EXTENSIONS = frozenset({
+    '.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp',
+})
+MAX_AI_ATTACHMENT_BYTES = 12 * 1024 * 1024
+MAX_AI_ATTACHMENT_TEXT_CHARS = 20000
+DEFAULT_ATTACHMENT_QUESTION = (
+    'Analyze the attached file or photo. Identify the device, object, error '
+    'message, or problem shown, read any visible text, and explain what it '
+    'means and what I should do next.'
+)
+GEMINI_IMAGE_MIME_TYPES = frozenset({
+    'image/png', 'image/jpeg', 'image/webp', 'image/heic', 'image/heif',
+})
+_IMAGE_MIME_BY_EXTENSION = {
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.webp': 'image/webp',
+    '.heic': 'image/heic',
+    '.heif': 'image/heif',
+}
 _FOLLOW_UP_PRONOUNS = frozenset({
     'it', 'its', 'this', 'that', 'these', 'those', 'they', 'them', 'their',
     'same', 'also', 'still', 'again', 'another', 'both',
@@ -452,11 +488,230 @@ def _serialize_answer(answer):
         ],
         'ai': bool(answer.get('ai')),
         'notice': str(answer.get('notice') or ''),
-        'mentioned_products': _products_mentioned_in_answer(answer),
+        'mentioned_products': (
+            []
+            if answer.get('brand_overview')
+            else _products_mentioned_in_answer(answer)
+        ),
     }
     if serialized['kind'] == 'results':
         serialized['matches'] = _serialize_matches(answer.get('matches'))
     return serialized
+
+
+def _chat_upload_name(upload):
+    raw_name = os.path.basename(str(upload.name or '')).strip()
+    try:
+        return get_valid_filename(raw_name)
+    except SuspiciousFileOperation:
+        return ''
+
+
+def _save_chat_attachments(uploads):
+    if not uploads:
+        return [], ''
+    if len(uploads) > MAX_CHAT_ATTACHMENTS:
+        return [], 'You can attach up to %d files at a time.' % MAX_CHAT_ATTACHMENTS
+
+    validated = []
+    total_size = 0
+    for upload in uploads:
+        name = _chat_upload_name(upload)
+        extension = os.path.splitext(name)[1].lower()
+        if not name or extension not in CHAT_ATTACHMENT_EXTENSIONS:
+            return [], '"%s" is not a supported file type.' % (name or 'That file')
+        if not upload.size:
+            return [], '"%s" is empty.' % name
+        if upload.size > MAX_CHAT_ATTACHMENT_BYTES:
+            return [], '"%s" is larger than 10 MB.' % name
+        total_size += upload.size
+        validated.append((upload, name, extension))
+    if total_size > MAX_CHAT_ATTACHMENT_TOTAL_BYTES:
+        return [], 'Attachments must be 25 MB or smaller in total.'
+
+    attachments = []
+    for upload, name, extension in validated:
+        stored_name = 'chat_uploads/%s/%s%s' % (
+            timezone.now().strftime('%Y%m'), uuid.uuid4().hex, extension
+        )
+        saved_path = default_storage.save(stored_name, upload)
+        attachments.append({
+            'name': name[:120],
+            'url': default_storage.url(saved_path),
+            'size': upload.size,
+            'is_image': extension in CHAT_IMAGE_EXTENSIONS,
+        })
+    return attachments, ''
+
+
+def _convert_image_for_ai(upload):
+    try:
+        from PIL import Image
+    except Exception:
+        logger.exception('Image support is unavailable')
+        return '', b''
+    try:
+        upload.seek(0)
+        with Image.open(upload) as image:
+            if getattr(image, 'is_animated', False):
+                image.seek(0)
+            converted = image.convert('RGB')
+            buffer = io.BytesIO()
+            converted.save(buffer, format='JPEG', quality=88)
+            return 'image/jpeg', buffer.getvalue()
+    except Exception:
+        logger.warning('Could not read an attached image for AI analysis')
+        return '', b''
+
+
+def _ai_chat_attachments(uploads):
+    """Build Gemini-ready attachment parts for the current message."""
+    attachments = []
+    total_size = 0
+    for upload in uploads:
+        name = _chat_upload_name(upload) or 'attachment'
+        extension = os.path.splitext(name)[1].lower()
+        mime_type = str(getattr(upload, 'content_type', '') or '').lower()
+        if not mime_type:
+            mime_type = mimetypes.guess_type(name)[0] or 'application/octet-stream'
+        try:
+            upload.seek(0)
+        except (AttributeError, OSError):
+            pass
+
+        if extension in CHAT_IMAGE_EXTENSIONS:
+            if extension in ('.gif', '.bmp'):
+                mime_type, data = _convert_image_for_ai(upload)
+            else:
+                if mime_type not in GEMINI_IMAGE_MIME_TYPES:
+                    mime_type = _IMAGE_MIME_BY_EXTENSION.get(
+                        extension, 'image/jpeg'
+                    )
+                try:
+                    data = upload.read()
+                except (AttributeError, OSError):
+                    data = b''
+            if not data:
+                attachments.append({
+                    'type': 'note',
+                    'text': (
+                        'The user attached an image named "%s" but it could not '
+                        'be read. Ask them to attach a JPEG or PNG photo.'
+                    ) % name,
+                })
+                continue
+            if total_size + len(data) > MAX_AI_ATTACHMENT_BYTES:
+                attachments.append({
+                    'type': 'note',
+                    'text': (
+                        'The user attached an image named "%s" that is too large '
+                        'to inspect. Ask them to send a smaller JPEG or PNG.'
+                    ) % name,
+                })
+                continue
+            total_size += len(data)
+            attachments.append({
+                'type': 'image',
+                'name': name,
+                'mime_type': mime_type,
+                'data': data,
+            })
+        elif extension == '.pdf':
+            try:
+                data = upload.read()
+            except (AttributeError, OSError):
+                data = b''
+            if data and total_size + len(data) <= MAX_AI_ATTACHMENT_BYTES:
+                total_size += len(data)
+                attachments.append({
+                    'type': 'document',
+                    'name': name,
+                    'mime_type': 'application/pdf',
+                    'data': data,
+                })
+            else:
+                attachments.append({
+                    'type': 'note',
+                    'text': (
+                        'The user attached a PDF named "%s" but it could not be '
+                        'inspected. Ask them to send a smaller PDF or a photo '
+                        'of the relevant page.'
+                    ) % name,
+                })
+        elif extension in {'.txt', '.md', '.csv'}:
+            try:
+                raw = upload.read(MAX_AI_ATTACHMENT_TEXT_CHARS + 1)
+            except (AttributeError, OSError):
+                raw = b''
+            text = raw.decode('utf-8', errors='replace')[
+                :MAX_AI_ATTACHMENT_TEXT_CHARS
+            ]
+            attachments.append({
+                'type': 'text',
+                'text': 'Contents of attached file "%s":\n%s' % (name, text),
+            })
+        else:
+            attachments.append({
+                'type': 'note',
+                'text': (
+                    'The user attached a file named "%s" (%s). This file type '
+                    'cannot be read directly. Ask them to describe the content '
+                    'or attach a photo or PDF if they need help with it.'
+                ) % (name, mime_type),
+            })
+    return attachments
+
+
+def _normalize_chat_attachments(raw):
+    if not isinstance(raw, list):
+        return []
+    media_prefix = settings.MEDIA_URL or '/media/'
+    attachments = []
+    for item in raw[:MAX_CHAT_ATTACHMENTS]:
+        if not isinstance(item, dict):
+            continue
+        name = item.get('name')
+        url = item.get('url')
+        size = item.get('size')
+        if not isinstance(name, str) or not name.strip():
+            continue
+        if not isinstance(url, str) or not url.startswith(media_prefix):
+            continue
+        if not isinstance(size, int) or isinstance(size, bool) or size < 0:
+            size = 0
+        attachments.append({
+            'name': name.strip()[:120],
+            'url': url,
+            'size': size,
+            'is_image': bool(item.get('is_image')),
+        })
+    return attachments
+
+
+def _attachment_only_answer(attachments):
+    count = len(attachments)
+    names = ', '.join(item['name'] for item in attachments)
+    return {
+        'kind': 'answer',
+        'badge': 'Files received',
+        'title': 'Attachment received' if count == 1 else 'Attachments received',
+        'summary': (
+            'I received %d %s: %s. Tell me what you need help with and '
+            'include any details from the attached file.'
+            % (count, 'file' if count == 1 else 'files', names)
+        ),
+        'suggestions': [
+            'Help me troubleshoot a device problem.',
+            'Find accessories that are compatible with my device.',
+        ],
+    }
+
+
+def _attachment_notice(attachments):
+    count = len(attachments)
+    names = ', '.join(item['name'] for item in attachments)
+    label = 'file' if count == 1 else '%d files' % count
+    return 'Attached %s: %s.' % (label, names)
 
 
 def _get_chat_history(request):
@@ -470,11 +725,16 @@ def _get_chat_history(request):
         role = item.get('role')
         if role == 'user':
             text = item.get('text')
-            if isinstance(text, str) and text.strip():
-                history.append({
-                    'role': 'user',
-                    'text': text.strip()[:MAX_CHAT_QUESTION_LENGTH],
-                })
+            if not isinstance(text, str):
+                text = ''
+            text = text.strip()[:MAX_CHAT_QUESTION_LENGTH]
+            attachments = _normalize_chat_attachments(item.get('attachments'))
+            if not text and not attachments:
+                continue
+            entry = {'role': 'user', 'text': text}
+            if attachments:
+                entry['attachments'] = attachments
+            history.append(entry)
         elif role == 'assistant':
             answer = item.get('answer')
             if isinstance(answer, dict):
@@ -486,14 +746,27 @@ def _save_chat_history(request, history):
     request.session[CHAT_SESSION_KEY] = history[-MAX_CHAT_MESSAGES:]
 
 
-def _append_chat_turn(request, message, answer):
+def _append_chat_turn(request, message, answer, attachments=None):
     history = _get_chat_history(request)
-    history.append({'role': 'user', 'text': message})
+    entry = {'role': 'user', 'text': message}
+    if attachments:
+        entry['attachments'] = attachments
+    history.append(entry)
     history.append({'role': 'assistant', 'answer': answer})
     _save_chat_history(request, history)
-    record_recent_activity(
-        request, 'assistant', message, reverse('dashboard') + '#techfix'
-    )
+    if message:
+        activity_title = message
+    else:
+        count = len(attachments or [])
+        activity_title = 'Shared %d %s' % (
+            count, 'file' if count == 1 else 'files'
+        )
+    try:
+        record_recent_activity(
+            request, 'assistant', activity_title, reverse('dashboard') + '#techfix'
+        )
+    except Exception:
+        logger.exception('Recording recent activity failed')
 
 
 def _context_query(message, history):
@@ -530,17 +803,19 @@ def _is_chat_question(message):
     return any(w in text for w in trouble_words)
 
 
-def _create_chat_answer(message, history):
+def _create_chat_answer(message, history, attachments=None):
     try:
         local_answer = build_answer(_context_query(message, history))
     except Exception:
         logger.exception('Local assistant answer failed')
         local_answer = None
 
-    if local_answer and local_answer.get('strict'):
-        return local_answer
-
-    answer = enhance_answer(message, local_answer, history=history)
+    answer = enhance_answer(
+        message,
+        local_answer,
+        history=history,
+        attachments=attachments,
+    )
     if answer:
         if local_answer and local_answer.get('matches') and not answer.get('matches'):
             answer['matches'] = local_answer['matches']
@@ -548,6 +823,16 @@ def _create_chat_answer(message, history):
             answer['product'] = local_answer['product']
         if local_answer and local_answer.get('accessory') and not answer.get('accessory'):
             answer['accessory'] = local_answer['accessory']
+        if local_answer and local_answer.get('strict'):
+            local_kind = local_answer.get('kind')
+            if local_kind in ('product', 'results'):
+                answer['kind'] = local_kind
+            if not attachments:
+                answer['kind'] = local_kind or answer.get('kind')
+                if local_answer.get('badge'):
+                    answer['badge'] = local_answer['badge']
+                if local_answer.get('suggestions') and not answer.get('suggestions'):
+                    answer['suggestions'] = local_answer['suggestions']
         return answer
 
     return local_answer
@@ -593,28 +878,53 @@ def scheduled_assistant(request):
 @require_POST
 @never_cache
 def assistant_chat(request):
-    try:
-        payload = json.loads(request.body or b'{}')
-    except (TypeError, ValueError):
-        return JsonResponse({'error': 'Invalid chat request.'}, status=400)
-    if not isinstance(payload, dict):
-        return JsonResponse({'error': 'Invalid chat request.'}, status=400)
+    is_multipart = (
+        str(request.content_type or '').startswith('multipart/form-data')
+    )
+    if is_multipart:
+        message = request.POST.get('message', '')
+        if not isinstance(message, str):
+            return JsonResponse({'error': 'Invalid chat request.'}, status=400)
+    else:
+        try:
+            payload = json.loads(request.body or b'{}')
+        except (TypeError, ValueError):
+            return JsonResponse({'error': 'Invalid chat request.'}, status=400)
+        if not isinstance(payload, dict):
+            return JsonResponse({'error': 'Invalid chat request.'}, status=400)
+        message = payload.get('message')
+        if not isinstance(message, str):
+            return JsonResponse({'error': 'Please type a message.'}, status=400)
 
-    message = payload.get('message')
-    if not isinstance(message, str):
-        return JsonResponse({'error': 'Please type a message.'}, status=400)
     message = message.strip()
-    if not message:
-        return JsonResponse({'error': 'Please type a message.'}, status=400)
     if len(message) > MAX_CHAT_QUESTION_LENGTH:
         return JsonResponse(
             {'error': 'Please keep your question under 1,000 characters.'},
             status=400,
         )
 
+    attachments = []
+    ai_attachments = []
+    if is_multipart:
+        uploads = request.FILES.getlist('attachments')
+        if not uploads:
+            uploads = request.FILES.getlist('files')
+        attachments, attachment_error = _save_chat_attachments(uploads)
+        if attachment_error:
+            return JsonResponse({'error': attachment_error}, status=400)
+        if uploads:
+            ai_attachments = _ai_chat_attachments(uploads)
+
+    if not message and not attachments:
+        return JsonResponse({'error': 'Please type a message.'}, status=400)
+
     history = _get_chat_history(request)
     try:
-        answer = _create_chat_answer(message, history)
+        answer = _create_chat_answer(
+            message or DEFAULT_ATTACHMENT_QUESTION,
+            history,
+            attachments=ai_attachments or None,
+        )
     except Exception:
         logger.exception('Assistant chat failed')
         return JsonResponse(
@@ -622,6 +932,8 @@ def assistant_chat(request):
                       'Please try again.'},
             status=500,
         )
+    if not message and not (answer and answer.get('ai')):
+        answer = _attachment_only_answer(attachments)
     if not answer:
         return JsonResponse(
             {'error': 'TechFix could not answer that question right now. '
@@ -629,23 +941,35 @@ def assistant_chat(request):
             status=502,
         )
 
-    serialized = _serialize_answer(answer)
-    _append_chat_turn(request, message, serialized)
     try:
+        serialized = _serialize_answer(answer)
+        if attachments:
+            notice = _attachment_notice(attachments)
+            serialized['notice'] = (
+                '%s %s' % (notice, serialized['notice'])
+                if serialized.get('notice') else notice
+            )
         html = render_to_string(
             'catalog/_chat_message.html',
             {'message': {'role': 'assistant', 'answer': serialized}},
             request=request,
         )
+        _append_chat_turn(request, message, serialized, attachments)
     except Exception:
-        logger.exception('Assistant reply rendering failed')
+        logger.exception('Assistant reply failed')
         return JsonResponse(
             {'error': 'TechFix could not display that answer. Please try again.'},
             status=500,
         )
+
+    try:
+        recent_activities = get_recent_activities(request)
+    except Exception:
+        logger.exception('Loading recent activities failed')
+        recent_activities = []
     return JsonResponse({
         'html': html,
-        'recent_activities': get_recent_activities(request),
+        'recent_activities': recent_activities,
     })
 
 

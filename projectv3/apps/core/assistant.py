@@ -83,6 +83,10 @@ _ACCESSORY_QUERY_WORDS = frozenset({
     'webcam', 'tripod', 'mount', 'lens', 'filter', 'mic', 'microphone',
     'label', 'ribbon', 'drum', 'fuser', 'lamp', 'bulb',
 })
+_PRODUCT_LIST_TOKENS = frozenset({
+    'product', 'devic', 'gadget', 'item', 'thing',
+})
+_ACCESSORY_LIST_TOKENS = frozenset({'accessory'})
 
 _DEVICE_TOKENS = frozenset({
     'phon', 'laptop', 'tablet', 'tv', 'camera', 'printer', 'router',
@@ -1047,7 +1051,13 @@ def _no_match_answer(query):
     }
 
 
-def _brand_answer(brand, products, accessories):
+def _brand_answer(
+    brand, products, accessories, query_tokens=None, device_tokens=None,
+    accessory_type_tokens=None,
+):
+    query_tokens = query_tokens or set()
+    device_tokens = device_tokens or set()
+    accessory_type_tokens = accessory_type_tokens or set()
     brand_products = [
         item for item in products
         if (item.brand or '').lower() == brand.lower()
@@ -1056,15 +1066,78 @@ def _brand_answer(brand, products, accessories):
         item for item in accessories
         if (item.brand or '').lower() == brand.lower()
     ]
-    summary = 'I found %s and %s for %s.' % (
-        _plural(len(brand_products), 'product'),
-        _plural(len(brand_accessories), 'accessory', 'accessories'),
-        brand,
+    wants_accessories = bool(
+        query_tokens & _ACCESSORY_LIST_TOKENS or accessory_type_tokens
     )
+    wants_products = bool(
+        query_tokens & _PRODUCT_LIST_TOKENS
+        or (device_tokens and not wants_accessories)
+    )
+
+    if not wants_products and not wants_accessories:
+        return {
+            'kind': 'answer',
+            'badge': 'Brand overview',
+            'title': brand,
+            'summary': (
+                '%s is available in the TechFix catalog. Tell me which %s '
+                'product or accessory you need help with, or ask a question '
+                'about the brand.' % (brand, brand)
+            ),
+            'first_step': '',
+            'steps': [],
+            'steps_title': '',
+            'difficulty': '',
+            'category': '',
+            'product': None,
+            'accessory': None,
+            'video_url': '',
+            'safety': '',
+            'suggestions': [],
+            'ai': False,
+            'strict': False,
+            'brand_overview': True,
+            'matches': {'products': [], 'accessories': [], 'solutions': []},
+            'sources': [],
+        }
+
+    matched_products = brand_products if wants_products else []
+    matched_accessories = brand_accessories if wants_accessories else []
+    if not matched_products and not matched_accessories:
+        return {
+            'kind': 'answer',
+            'badge': 'No exact match',
+            'title': brand,
+            'summary': (
+                'No %s items are listed in the TechFix catalog yet. Ask me '
+                'about a specific model, or tell me what you need help with.'
+            ) % brand,
+            'first_step': '',
+            'steps': [],
+            'steps_title': '',
+            'difficulty': '',
+            'category': '',
+            'product': None,
+            'accessory': None,
+            'video_url': '',
+            'safety': '',
+            'suggestions': [],
+            'ai': False,
+            'strict': False,
+            'matches': {'products': [], 'accessories': [], 'solutions': []},
+            'sources': [],
+        }
+
+    counts = []
+    if matched_products:
+        counts.append(_plural(len(matched_products), 'product'))
+    if matched_accessories:
+        counts.append(_plural(len(matched_accessories), 'accessory', 'accessories'))
+    summary = 'I found %s for %s.' % (' and '.join(counts), brand)
     return _results_answer(
         brand, summary,
-        products=brand_products,
-        accessories=brand_accessories,
+        products=matched_products,
+        accessories=matched_accessories,
     )
 
 
@@ -1484,11 +1557,14 @@ def build_answer(query):
                 if _brand_matches(item, brand_hits)
                 and _device_match(item, device_tokens)
             ]
-            matched_accessories = [
-                item for item in accessories
-                if _brand_matches(item, brand_hits)
-                and _device_match(item, device_tokens)
-            ]
+            matched_accessories = []
+            if query_tokens & _ACCESSORY_LIST_TOKENS:
+                matched_accessories = [
+                    item for item in accessories
+                    if _brand_matches(item, brand_hits)
+                    and _device_match(item, device_tokens)
+                ]
+                matched_products = []
             answer = _catalog_results_answer(
                 query, matched_products, matched_accessories
             )
@@ -1545,8 +1621,15 @@ def build_answer(query):
         answer = _accessory_answer(
             best_accessory[2], query, answer_intent, topic
         )
-    elif brand_hits:
-        answer = _brand_answer(brand_hits[0], products, accessories)
+    elif brand_hits and not issue_signal:
+        answer = _brand_answer(
+            brand_hits[0], products, accessories,
+            query_tokens=query_tokens,
+            device_tokens=device_tokens,
+            accessory_type_tokens=accessory_type_tokens,
+        )
+        if answer.get('kind') != 'results':
+            return answer
     elif issue_signal:
         answer = _fallback_answer(
             query, topic, solution_ranked, brand_hits, device_tokens,

@@ -1,5 +1,6 @@
 """Gemini-powered answers for the TechFix chat box."""
 
+import base64
 import json
 import logging
 import urllib.error
@@ -28,7 +29,11 @@ _SYSTEM_PROMPT = (
     'for hardware and software problems.\n'
     '5. TechFix catalog, products, pricing, stock, compatibility, and platform navigation: when '
     'TechFix catalog data is provided, it is the source of truth. Quote exact prices and stock; '
-    'never invent or guess a TechFix price, stock value, or product specification.\n\n'
+    'never invent or guess a TechFix price, stock value, or product specification.\n'
+    '6. Attached photos and files: inspect every image or document attached to the message. '
+    'Identify the device, component, damage, error message, label, or other visible detail, read '
+    'any visible text, and base the answer on what is actually shown. Never invent details that '
+    'are not visible or present in the attachment.\n\n'
     'Guidelines for answers:\n'
     '- Be direct, specific, and technically accurate. Address the question immediately.\n'
     '- Use exact model names, standards, and measurable details where they matter. If a fact is '
@@ -123,13 +128,20 @@ def _source_block(source, index):
     )
 
 
-def _build_prompt(question, sources, history_included=False):
+def _build_prompt(question, sources, history_included=False, attachments=None):
     lines = ['User question: %s' % question, '']
     if history_included:
         lines.append(
             'The earlier conversation is context only. Answer only the user\'s latest question. '
-            'Use prior messages to understand what they mean, but do not repeat or summarize '
-            'earlier answers unless the user asks.'
+            'Use prior messages to understand what they mean, but do not repeat or '
+            'summarize earlier answers unless the user asks.'
+        )
+        lines.append('')
+    if attachments:
+        lines.append(
+            'The user attached file content to this message. Examine it carefully before '
+            'answering. Read visible text, identify the device, part, or problem shown, and '
+            'use only details that are actually present in the attachment.'
         )
         lines.append('')
     if sources:
@@ -292,17 +304,52 @@ def _ask_model(model, key, payload):
     return _parse_gemini_data(data, model)
 
 
-def ask_gemini(question, sources, history=None):
+def _attachment_parts(attachments):
+    parts = []
+    for attachment in attachments or []:
+        if not isinstance(attachment, dict):
+            continue
+        kind = attachment.get('type')
+        name = str(attachment.get('name') or 'attachment').strip()[:120]
+        if kind in ('image', 'document'):
+            data = attachment.get('data')
+            if not data:
+                continue
+            mime_type = str(
+                attachment.get('mime_type') or 'application/octet-stream'
+            )
+            label = 'Image attachment: %s' % name
+            if kind == 'document':
+                label = 'PDF attachment: %s' % name
+            parts.append({'text': label})
+            parts.append({
+                'inlineData': {
+                    'mimeType': mime_type,
+                    'data': base64.b64encode(data).decode('ascii'),
+                }
+            })
+        elif kind in ('text', 'note'):
+            text = str(attachment.get('text') or '').strip()
+            if text:
+                parts.append({'text': text[:20000]})
+    return parts
+
+
+def ask_gemini(question, sources, history=None, attachments=None):
     key = getattr(settings, 'GEMINI_API_KEY', '')
     if not key:
         return None
     contents = _history_contents(history)
-    contents.append({
-        'role': 'user',
-        'parts': [{
-            'text': _build_prompt(question, sources, history_included=bool(contents))
-        }],
-    })
+    parts = [{
+        'text': _build_prompt(
+            question,
+            sources,
+            history_included=bool(contents),
+            attachments=bool(attachments),
+        )
+    }]
+    parts.extend(_attachment_parts(attachments))
+    contents.append({'role': 'user', 'parts': parts})
     payload = {
         'systemInstruction': {'parts': [{'text': _SYSTEM_PROMPT}]},
         'contents': contents,
@@ -385,11 +432,14 @@ def _merge_ai_answer(answer, data):
     return merged
 
 
-def enhance_answer(question, answer, history=None):
+def enhance_answer(question, answer, history=None, attachments=None):
     """Answer with Gemini, falling back to the local catalog answer if needed."""
     answer = answer or {}
     data = ask_gemini(
-        question, answer.get('sources', []), history=history
+        question,
+        answer.get('sources', []),
+        history=history,
+        attachments=attachments,
     )
     if not data:
         if not answer:

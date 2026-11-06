@@ -1,4 +1,5 @@
 {% extends "theme/base.html" %}
+{% load static %}
 {% block title %}Scheduled | TechFix{% endblock %}
 {% block body_class %}scheduled-assistant-page{% if chat_messages %} has-conversation{% endif %}{% endblock %}
 {% block content %}
@@ -8,11 +9,25 @@
     <p class="scheduled-subtitle">Your smart technology and accessories assistant</p>
   </header>
 
+  <div class="composer-files scheduled-files" id="scheduledFiles" data-attach-preview hidden></div>
   <form method="get" action="{% url 'dashboard' %}" class="scheduled-composer" id="scheduledComposer"
         data-chat-url="{% url 'assistant_chat' %}" data-csrf-token="{{ csrf_token }}">
-    <button type="button" class="scheduled-plus" id="scheduledPlus" title="Focus message" aria-label="Focus message">
-      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg>
-    </button>
+    <div class="scheduled-attach">
+      <button type="button" class="scheduled-plus" data-attach-toggle title="Add photos &amp; files"
+              aria-label="Add photos &amp; files" aria-haspopup="true" aria-expanded="false"
+              aria-controls="scheduledAttachMenu">
+        <img src="{% static 'img/brands/techfix.svg' %}" alt="" width="22" height="22">
+      </button>
+      <div class="attach-menu" id="scheduledAttachMenu" data-attach-menu role="menu" hidden>
+        <button type="button" class="attach-menu-item" data-attach-pick role="menuitem">
+          <span class="attach-menu-icon"><i class="fa-solid fa-paperclip" aria-hidden="true"></i></span>
+          <span class="attach-menu-label">Add photos &amp; files</span>
+          <span class="attach-menu-hint">Upload from computer</span>
+        </button>
+      </div>
+      <input type="file" data-attach-file multiple hidden
+             accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.pdf,.txt,.md,.csv,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,image/*">
+    </div>
     <input type="search" name="q" id="scheduledInput" class="scheduled-input" maxlength="1000"
            placeholder="Ask about a technology problem, gadget, or solution..." autocomplete="off"
            enterkeyhint="send" aria-label="Ask TechFix">
@@ -20,6 +35,7 @@
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 18V6"/><path d="m7 11 5-5 5 5"/></svg>
     </button>
   </form>
+  <span class="voice-status" id="scheduledStatus" role="status" aria-live="polite" hidden></span>
 
   <div class="scheduled-thread" id="scheduledThread" aria-live="polite" aria-relevant="additions">
     {% for message in chat_messages %}
@@ -111,7 +127,10 @@
     <div class="assistant-thread assistant-thread-ask">
       <div class="assistant-ask">
         <div class="assistant-ask-avatar">{% if request.user.get_full_name %}{{ request.user.first_name|first|upper }}{{ request.user.last_name|first|upper }}{% else %}{{ request.user.username|first|upper }}{% endif %}</div>
-        <div class="assistant-ask-bubble" data-chat-bubble></div>
+        <div class="assistant-ask-bubble">
+          <span data-chat-text></span>
+          <div data-chat-files></div>
+        </div>
       </div>
     </div>
   </template>
@@ -152,6 +171,7 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="{% static 'js/chat-attachments.js' %}?v=1"></script>
 <script>
 (function () {
   var root = document.getElementById('scheduledAssistant');
@@ -159,7 +179,7 @@
   var input = document.getElementById('scheduledInput');
   var thread = document.getElementById('scheduledThread');
   var recommended = document.getElementById('scheduledRecommended');
-  var plus = document.getElementById('scheduledPlus');
+  var status = document.getElementById('scheduledStatus');
   var userTemplate = document.getElementById('scheduledUserTemplate');
   var loadingTemplate = document.getElementById('scheduledLoadingTemplate');
   var errorTemplate = document.getElementById('scheduledErrorTemplate');
@@ -169,6 +189,18 @@
   var csrfToken = form.getAttribute('data-csrf-token') || '';
   var submitButton = form.querySelector('.scheduled-send');
   var sending = false;
+  var attachments = window.TechFixAttachments
+    ? window.TechFixAttachments.create(form, {
+      preview: document.getElementById('scheduledFiles'),
+      onStatus: setStatus
+    })
+    : null;
+
+  function setStatus(message) {
+    if (!status) return;
+    status.textContent = message;
+    status.hidden = !message;
+  }
 
   function scrollToBottom(behavior) {
     var last = thread.lastElementChild;
@@ -185,11 +217,15 @@
     return node;
   }
 
-  function appendUserMessage(message) {
+  function appendUserMessage(message, files) {
     var node = appendFromTemplate(userTemplate);
     if (!node) return;
-    var bubble = node.querySelector('[data-chat-bubble]');
-    if (bubble) bubble.textContent = message;
+    var text = node.querySelector('[data-chat-text]');
+    if (text) text.textContent = message;
+    var fileSlot = node.querySelector('[data-chat-files]');
+    if (attachments && fileSlot) {
+      attachments.renderMessageAttachments(fileSlot, files);
+    }
   }
 
   function showLoading() {
@@ -198,13 +234,14 @@
     return node;
   }
 
-  function showError(message, failedPrompt) {
+  function showError(message, failedPrompt, failedAttachments) {
     var node = appendFromTemplate(errorTemplate);
     if (node) {
       var slot = node.querySelector('[data-chat-error-message]');
       var retryButton = node.querySelector('[data-chat-retry]');
       if (slot) slot.textContent = message;
       if (retryButton) retryButton.setAttribute('data-retry-message', failedPrompt);
+      node._techfixAttachments = failedAttachments || [];
     }
     scrollToBottom();
   }
@@ -224,38 +261,57 @@
     if (recommended) recommended.hidden = true;
   }
 
-  function sendMessage(message, isRetry) {
+  function sendMessage(message, isRetry, retryAttachments) {
     message = (message || '').trim();
-    if (!message || sending || !chatUrl) return;
+    var files = isRetry && retryAttachments
+      ? retryAttachments
+      : (attachments ? attachments.snapshot() : []);
+    if ((!message && !files.length) || sending || !chatUrl) return;
     var messageToRetry = message;
 
     setConversation();
-    if (!isRetry) appendUserMessage(message);
+    if (!isRetry) appendUserMessage(message, files);
     input.value = '';
+    if (!isRetry && attachments) attachments.clear();
     setSending(true);
     var loading = showLoading();
     var controller = typeof AbortController === 'function' ? new AbortController() : null;
     var timeoutId = controller
       ? window.setTimeout(function () { controller.abort(); }, 45000)
       : null;
-
-    fetch(chatUrl, {
+    var request = {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
         'X-CSRFToken': csrfToken,
         'X-Requested-With': 'XMLHttpRequest'
       },
-      body: JSON.stringify({ message: message }),
       signal: controller ? controller.signal : undefined
-    })
+    };
+
+    if (files.length) {
+      var body = new FormData();
+      body.append('message', message);
+      files.forEach(function (item) {
+        body.append('attachments', item.file, item.file.name);
+      });
+      request.body = body;
+    } else {
+      request.headers['Content-Type'] = 'application/json';
+      request.body = JSON.stringify({ message: message });
+    }
+
+    fetch(chatUrl, request)
       .then(function (response) {
         if (response.status === 401 || response.status === 403) {
           throw new Error('Your session expired. Refresh the page and sign in again.');
         }
         return response.json()
           .catch(function () {
-            return { error: 'TechFix returned an unexpected response.' };
+            return {
+              error: response.status >= 500
+                ? 'TechFix had a problem answering that. Please try again.'
+                : 'TechFix returned an unexpected response.'
+            };
           })
           .then(function (data) {
             if (!response.ok) {
@@ -285,7 +341,7 @@
         } else if (error && error.name === 'TypeError') {
           message = 'TechFix could not reach the server. Check your connection and try again.';
         }
-        showError(message, messageToRetry);
+        showError(message, messageToRetry, files);
       })
       .finally(function () {
         if (timeoutId) window.clearTimeout(timeoutId);
@@ -309,8 +365,9 @@
     if (sending) return;
     var errorNode = retryButton.closest('[data-chat-error]');
     var failedMessage = retryButton.getAttribute('data-retry-message') || '';
+    var failedAttachments = errorNode ? errorNode._techfixAttachments : [];
     removeNode(errorNode);
-    sendMessage(failedMessage, true);
+    sendMessage(failedMessage, true, failedAttachments);
   });
 
   root.querySelectorAll('.scheduled-action-use').forEach(function (button) {
@@ -346,12 +403,6 @@
       form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     }
   });
-
-  if (plus) {
-    plus.addEventListener('click', function () {
-      input.focus();
-    });
-  }
 
   input.addEventListener('keydown', function (event) {
     if (event.key === 'Escape') {

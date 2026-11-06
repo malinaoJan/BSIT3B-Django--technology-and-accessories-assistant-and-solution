@@ -447,6 +447,7 @@ class RecentActivity(models.Model):
     kind = models.CharField(max_length=40)
     title = models.CharField(max_length=120)
     url = models.CharField(max_length=2048)
+    chat_history = models.JSONField(default=list, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

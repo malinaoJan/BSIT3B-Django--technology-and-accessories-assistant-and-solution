@@ -2,7 +2,29 @@
 <div class="assistant-thread assistant-thread-ask">
   <div class="assistant-ask">
     <div class="assistant-ask-avatar">{% if request.user.is_authenticated %}{% if request.user.get_full_name %}{{ request.user.first_name|first|upper }}{{ request.user.last_name|first|upper }}{% else %}{{ request.user.username|first|upper }}{% endif %}{% else %}G{% endif %}</div>
-    <div class="assistant-ask-bubble">{{ message.text }}</div>
+    <div class="assistant-ask-bubble">
+      {% if message.text %}<span>{{ message.text }}</span>{% endif %}
+      {% if message.attachments %}
+      <div class="chat-attachments">
+        {% for attachment in message.attachments %}
+          {% if attachment.is_image %}
+          <a class="chat-attachment chat-attachment-image" href="{{ attachment.url }}" target="_blank" rel="noopener">
+            <img src="{{ attachment.url }}" alt="{{ attachment.name }}" loading="lazy">
+            <span class="chat-attachment-name">{{ attachment.name }}</span>
+          </a>
+          {% else %}
+          <a class="chat-attachment" href="{{ attachment.url }}" target="_blank" rel="noopener">
+            <span class="chat-attachment-file"><i class="fa-solid fa-file-lines" aria-hidden="true"></i></span>
+            <span class="chat-attachment-copy">
+              <span class="chat-attachment-name">{{ attachment.name }}</span>
+              <span class="chat-attachment-size">{{ attachment.size|filesizeformat }}</span>
+            </span>
+          </a>
+          {% endif %}
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
   </div>
 </div>
 {% else %}

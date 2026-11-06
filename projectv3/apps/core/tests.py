@@ -1,14 +1,24 @@
+import base64
 import json
+import os
+import tempfile
 from io import StringIO
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.test import Client, SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
 from .assistant import build_answer
-from .gemini import _build_prompt, _extract_text, _parse_gemini_data, enhance_answer
+from .gemini import (
+    _attachment_parts,
+    _build_prompt,
+    _extract_text,
+    _parse_gemini_data,
+    enhance_answer,
+)
 from .models import Accessory, Category, Product, Review, Solution
 from .views import CHAT_SESSION_KEY, _context_query
 from apps.users.models import PhoneProfile
@@ -880,6 +890,102 @@ class ChatEndpointTests(TestCase):
         )
 
     @patch('apps.core.views.enhance_answer')
+    def test_chat_accepts_file_attachments(self, mocked_enhance):
+        mocked_enhance.return_value = ai_answer()
+
+        with tempfile.TemporaryDirectory() as media_root:
+            with override_settings(MEDIA_ROOT=media_root):
+                upload = SimpleUploadedFile(
+                    'phone photo.png',
+                    b'fake-image-data',
+                    content_type='image/png',
+                )
+                response = self.client.post(
+                    reverse('assistant_chat'),
+                    data={
+                        'message': 'My phone will not charge',
+                        'attachments': upload,
+                    },
+                )
+                stored_files = [
+                    name
+                    for _, _, files in os.walk(media_root)
+                    for name in files
+                ]
+
+        self.assertEqual(response.status_code, 200)
+        history = self.client.session[CHAT_SESSION_KEY]
+        self.assertEqual(history[0]['text'], 'My phone will not charge')
+        attachment = history[0]['attachments'][0]
+        self.assertEqual(attachment['name'], 'phone_photo.png')
+        self.assertTrue(attachment['is_image'])
+        self.assertTrue(attachment['url'].startswith('/media/chat_uploads/'))
+        self.assertTrue(stored_files)
+        mocked_enhance.assert_called_once()
+        ai_attachments = mocked_enhance.call_args.kwargs['attachments']
+        self.assertEqual(ai_attachments[0]['type'], 'image')
+        self.assertEqual(ai_attachments[0]['data'], b'fake-image-data')
+        self.assertIn(
+            'Attached file: phone_photo.png.',
+            response.json()['html'],
+        )
+
+    @patch('apps.core.views.enhance_answer')
+    def test_chat_answers_attachment_without_text_using_ai(self, mocked_enhance):
+        mocked_enhance.return_value = ai_answer(
+            title='Charging port damage',
+            summary='The photo shows a damaged charging port.',
+        )
+        with tempfile.TemporaryDirectory() as media_root:
+            with override_settings(MEDIA_ROOT=media_root):
+                upload = SimpleUploadedFile(
+                    'notes.txt', b'hello', content_type='text/plain'
+                )
+                response = self.client.post(
+                    reverse('assistant_chat'),
+                    data={'attachments': upload},
+                )
+
+        self.assertEqual(response.status_code, 200)
+        mocked_enhance.assert_called_once()
+        question = mocked_enhance.call_args.args[0]
+        self.assertIn('attached file or photo', question)
+        ai_attachments = mocked_enhance.call_args.kwargs['attachments']
+        self.assertEqual(ai_attachments[0]['type'], 'text')
+        self.assertIn('hello', ai_attachments[0]['text'])
+        self.assertIn(
+            'The photo shows a damaged charging port.',
+            response.json()['html'],
+        )
+        history = self.client.session[CHAT_SESSION_KEY]
+        self.assertEqual(history[0]['text'], '')
+        self.assertEqual(history[0]['attachments'][0]['name'], 'notes.txt')
+
+    def test_chat_rejects_unsupported_attachment(self):
+        upload = SimpleUploadedFile('malware.exe', b'boom')
+        response = self.client.post(
+            reverse('assistant_chat'),
+            data={'message': 'Open this', 'attachments': upload},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('not a supported file type', response.json()['error'])
+
+    @patch('apps.core.views.record_recent_activity', side_effect=RuntimeError('db down'))
+    @patch('apps.core.views.enhance_answer')
+    def test_chat_survives_recent_activity_failure(
+        self, mocked_enhance, mocked_record
+    ):
+        mocked_enhance.return_value = ai_answer()
+
+        with self.assertLogs('apps.core.views', level='ERROR'):
+            response = self.post_message('My phone will not charge')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('html', response.json())
+        mocked_record.assert_called_once()
+
+    @patch('apps.core.views.enhance_answer')
     def test_follow_up_receives_previous_history(self, mocked_enhance):
         mocked_enhance.return_value = ai_answer()
         self.post_message('My phone will not charge')
@@ -1000,12 +1106,13 @@ class ChatEndpointTests(TestCase):
         response = self.post_message('Tell me about Test Phone')
 
         self.assertEqual(response.status_code, 200)
-        mocked_enhance.assert_not_called()
+        mocked_enhance.assert_called_once()
         html = response.json()['html']
+        self.assertIn('Product summary', html)
         self.assertIn('TestBrand', html)
         self.assertIn('₱1,499.99', html)
         self.assertNotIn('$1,499.99', html)
-        self.assertIn('Stock: 3 units available.', html)
+        self.assertIn('3 available', html)
         self.assertIn('RAM: 8GB', html)
         self.assertIn('View product', html)
         self.assertIn('/media/products/test-phone.jpg', html)
@@ -1014,9 +1121,12 @@ class ChatEndpointTests(TestCase):
             html.count('class="assistant-result assistant-mentioned-product"'),
             1,
         )
-        self.assertNotIn('data-chat-prompt="How do I reset it?"', html)
+        self.assertIn('data-chat-prompt="How do I reset it?"', html)
 
-    def test_product_search_results_show_photos_and_placeholders(self):
+    @patch('apps.core.views.enhance_answer', return_value=None)
+    def test_product_search_results_show_photos_and_placeholders(
+        self, mocked_enhance
+    ):
         self.client.logout()
         category = Category.objects.create(name='Smartphones')
         Product.objects.create(
@@ -1107,6 +1217,66 @@ class StrictAssistantResultsTests(TestCase):
             difficulty_level='Easy',
         )
 
+    def test_brand_only_does_not_list_products_or_accessories(self):
+        answer = build_answer('Apple')
+
+        self.assertEqual(answer['kind'], 'answer')
+        self.assertEqual(answer['badge'], 'Brand overview')
+        self.assertTrue(answer.get('brand_overview'))
+        self.assertEqual(answer['matches']['products'], [])
+        self.assertEqual(answer['matches']['accessories'], [])
+        self.assertEqual(answer['sources'], [])
+
+    def test_brand_with_products_word_lists_products_only(self):
+        answer = build_answer('Apple products')
+
+        self.assertEqual(answer['kind'], 'results')
+        names = {item.name for item in answer['matches']['products']}
+        self.assertEqual(names, {'iPhone 17', 'iPhone 17 Pro Max'})
+        self.assertEqual(answer['matches']['accessories'], [])
+
+    def test_brand_with_accessories_word_lists_accessories_only(self):
+        answer = build_answer('Apple accessories')
+
+        self.assertEqual(answer['kind'], 'results')
+        names = {item.name for item in answer['matches']['accessories']}
+        self.assertEqual(names, {'iPhone Silicone Case with MagSafe'})
+        self.assertEqual(answer['matches']['products'], [])
+
+    def test_brand_phone_query_lists_products_without_accessories(self):
+        answer = build_answer('Samsung phone')
+
+        self.assertEqual(answer['kind'], 'results')
+        names = {item.name for item in answer['matches']['products']}
+        self.assertEqual(
+            names, {'Samsung Galaxy S25 Ultra', 'Samsung Galaxy S25 FE'}
+        )
+        self.assertEqual(answer['matches']['accessories'], [])
+
+    @patch('apps.core.gemini.ask_gemini')
+    def test_chat_brand_only_hides_catalog_product_cards(self, mocked_ask):
+        mocked_ask.return_value = {
+            'is_tech': True,
+            'title': 'About Apple',
+            'summary': 'Apple designs the iPhone 17 and other devices.',
+            'steps': [],
+            'difficulty': '',
+            'safety': '',
+        }
+
+        response = self.client.post(
+            reverse('assistant_chat'),
+            data=json.dumps({'message': 'Apple'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        html = response.json()['html']
+        self.assertIn('About Apple', html)
+        self.assertNotIn('assistant-mentioned-products', html)
+        self.assertNotIn('assistant-results', html)
+        self.assertNotIn('View product', html)
+
     def test_iphone_query_returns_only_iphone_products(self):
         answer = build_answer('iphone')
 
@@ -1167,7 +1337,8 @@ class StrictAssistantResultsTests(TestCase):
         self.assertIn('iPhone 17', names)
         self.assertIn('Samsung Galaxy S25 Ultra', names)
 
-    def test_phone_recommendation_returns_one_specific_answer(self):
+    @patch('apps.core.views.enhance_answer', return_value=None)
+    def test_phone_recommendation_returns_one_specific_answer(self, mocked_enhance):
         recommended = Product.objects.create(
             name='Spec Leader Phone',
             category=self.category,
@@ -1234,7 +1405,14 @@ class StrictAssistantResultsTests(TestCase):
         self.assertGreaterEqual(len(answer['steps']), 3)
 
     @patch('apps.core.views.enhance_answer')
-    def test_product_question_uses_exact_catalog_match(self, mocked_enhance):
+    def test_product_question_uses_ai_and_exact_catalog_match(
+        self, mocked_enhance
+    ):
+        mocked_enhance.return_value = ai_answer(
+            kind='product',
+            title='iPhone 17 Pro Max overview',
+            summary='The iPhone 17 Pro Max is a flagship phone.',
+        )
         response = self.client.post(
             reverse('assistant_chat'),
             data=json.dumps({'message': 'What is iPhone 17 Pro Max?'}),
@@ -1242,8 +1420,9 @@ class StrictAssistantResultsTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        mocked_enhance.assert_not_called()
+        mocked_enhance.assert_called_once()
         html = response.json()['html']
+        self.assertIn('The iPhone 17 Pro Max is a flagship phone.', html)
         self.assertIn('iPhone 17 Pro Max', html)
         self.assertIn('₱1,199.00', html)
         self.assertNotIn('Samsung Galaxy S25 Ultra', html)
@@ -1279,6 +1458,9 @@ class StrictAssistantResultsTests(TestCase):
 
     @patch('apps.core.views.enhance_answer')
     def test_chat_does_not_invent_missing_catalog_product(self, mocked_enhance):
+        mocked_enhance.return_value = ai_answer(
+            summary='No exact match for iPhone 18 in the TechFix catalog.'
+        )
         response = self.client.post(
             reverse('assistant_chat'),
             data=json.dumps({'message': 'What is iPhone 18?'}),
@@ -1286,12 +1468,17 @@ class StrictAssistantResultsTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        mocked_enhance.assert_not_called()
+        mocked_enhance.assert_called_once()
         self.assertIn('No exact match', response.json()['html'])
         self.assertNotIn('View product', response.json()['html'])
 
     @patch('apps.core.views.enhance_answer')
-    def test_chat_strict_results_skip_ai_and_render_matches(self, mocked_enhance):
+    def test_chat_strict_results_use_ai_and_render_matches(self, mocked_enhance):
+        mocked_enhance.return_value = ai_answer(
+            kind='results',
+            title='iPhone models',
+            summary='These are the iPhone models in the TechFix catalog.',
+        )
         user = get_user_model().objects.create_user(
             username='strict-chat', password='secret1234'
         )
@@ -1304,8 +1491,11 @@ class StrictAssistantResultsTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        mocked_enhance.assert_not_called()
+        mocked_enhance.assert_called_once()
         html = response.json()['html']
+        self.assertIn(
+            'These are the iPhone models in the TechFix catalog.', html
+        )
         self.assertIn('iPhone 17', html)
         self.assertIn('iPhone 17 Pro Max', html)
         self.assertNotIn('Samsung Galaxy S25', html)
@@ -1430,6 +1620,33 @@ class GeminiParsingTests(SimpleTestCase):
             prompt,
         )
 
+    def test_attachment_prompt_mentions_visual_inspection(self):
+        prompt = _build_prompt('What is wrong?', [], attachments=True)
+
+        self.assertIn('The user attached file content', prompt)
+        self.assertIn('Read visible text', prompt)
+
+    def test_attachment_parts_encode_images_for_gemini(self):
+        parts = _attachment_parts([
+            {
+                'type': 'image',
+                'name': 'phone.png',
+                'mime_type': 'image/png',
+                'data': b'photo-bytes',
+            },
+            {'type': 'text', 'text': 'hello'},
+            {'type': 'note', 'text': 'unsupported file'},
+        ])
+
+        self.assertEqual(parts[0], {'text': 'Image attachment: phone.png'})
+        self.assertEqual(parts[1]['inlineData']['mimeType'], 'image/png')
+        self.assertEqual(
+            base64.b64decode(parts[1]['inlineData']['data']),
+            b'photo-bytes',
+        )
+        self.assertEqual(parts[2], {'text': 'hello'})
+        self.assertEqual(parts[3], {'text': 'unsupported file'})
+
     def test_extract_text_ignores_thought_parts(self):
         data = {
             'candidates': [{
@@ -1478,6 +1695,31 @@ class GeminiParsingTests(SimpleTestCase):
 
 
 class GeminiEnhanceTests(TestCase):
+    @patch('apps.core.gemini.ask_gemini')
+    def test_enhance_forwards_attachments(self, mocked_ask):
+        attachments = [{
+            'type': 'image',
+            'name': 'phone.png',
+            'mime_type': 'image/png',
+            'data': b'photo-bytes',
+        }]
+        mocked_ask.return_value = {
+            'is_tech': True,
+            'title': 'Photo analysis',
+            'summary': 'The photo shows a damaged cable.',
+            'steps': [],
+            'difficulty': '',
+            'safety': '',
+        }
+
+        enhance_answer(
+            'What is wrong in this photo?',
+            {'kind': 'fallback', 'summary': 'Local answer', 'steps': []},
+            attachments=attachments,
+        )
+
+        self.assertEqual(mocked_ask.call_args.kwargs['attachments'], attachments)
+
     @patch('apps.core.gemini.ask_gemini')
     def test_off_topic_questions_are_refused(self, mocked_ask):
         mocked_ask.return_value = {
