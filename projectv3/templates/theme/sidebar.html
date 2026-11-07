@@ -42,7 +42,7 @@
       </div>
       <div class="sidebar-nav" id="recentActivities" aria-live="polite">
         {% for activity in recent_activities %}
-        <a href="{{ activity.url }}" class="recent-link">{{ activity.title }}</a>
+        <a href="{{ activity.restore_url|default:activity.url }}" class="recent-link">{{ activity.title }}</a>
         {% empty %}
         <span class="recent-empty">No recent activity yet</span>
         {% endfor %}

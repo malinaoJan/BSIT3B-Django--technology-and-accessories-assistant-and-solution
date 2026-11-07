@@ -1,3 +1,5 @@
+from django.urls import reverse
+
 RECENT_ACTIVITY_SESSION_KEY = 'techfix_recent_activity'
 MAX_RECENT_ACTIVITIES = 5
 
@@ -32,14 +34,24 @@ def get_recent_activities(request):
         for activity in reversed(legacy_activities):
             RecentActivity.objects.create(user=request.user, **activity)
 
-    return list(
-        RecentActivity.objects.filter(user=request.user)
-        .order_by('-created_at', '-pk')
-        .values('kind', 'title', 'url')[:MAX_RECENT_ACTIVITIES]
-    )
+    return [
+        {
+            'id': activity.pk,
+            'kind': activity.kind,
+            'title': activity.title,
+            'url': activity.url,
+            'restore_url': reverse(
+                'recent_activity', args=[activity.pk]
+            ),
+        }
+        for activity in (
+            RecentActivity.objects.filter(user=request.user)
+            .order_by('-created_at', '-pk')[:MAX_RECENT_ACTIVITIES]
+        )
+    ]
 
 
-def record_recent_activity(request, kind, title, url):
+def record_recent_activity(request, kind, title, url, chat_history=None):
     if not request.user.is_authenticated:
         return
 
@@ -55,7 +67,11 @@ def record_recent_activity(request, kind, title, url):
 
     get_recent_activities(request)
     RecentActivity.objects.filter(user=request.user, **activity).delete()
-    RecentActivity.objects.create(user=request.user, **activity)
+    RecentActivity.objects.create(
+        user=request.user,
+        chat_history=chat_history if isinstance(chat_history, list) else [],
+        **activity
+    )
     older_activity_ids = RecentActivity.objects.filter(user=request.user).order_by(
         '-created_at', '-pk'
     ).values_list('pk', flat=True)[MAX_RECENT_ACTIVITIES:]

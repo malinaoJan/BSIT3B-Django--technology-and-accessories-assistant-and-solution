@@ -862,6 +862,42 @@ def _suggestions(solution_ranked, brand=None, device_tokens=None,
     return suggestions[:3]
 
 
+def _tutorial_video(solution_ranked, brand_hits=(), device_tokens=(),
+                    identity_terms=None, brand_words=None, issue_terms=None,
+                    min_score=3):
+    """Return the video of the best matching repair guide, if it has one."""
+    brand_names = {
+        brand.casefold() for brand in (brand_hits or ()) if brand
+    }
+    issue_terms = issue_terms or set()
+    best_video = ''
+    best_overlap = -1
+    for score, matched, solution in solution_ranked:
+        if score < min_score or not solution.video_url:
+            continue
+        product = solution.related_product
+        if brand_names and (
+            not product or (product.brand or '').casefold() not in brand_names
+        ):
+            continue
+        if device_tokens and not _device_match(product, device_tokens):
+            continue
+        if identity_terms and not _identity_match(
+            _solution_identity_tokens(solution, brand_words or set()),
+            identity_terms,
+        ):
+            continue
+        overlap = len(matched & issue_terms)
+        if issue_terms and not overlap:
+            continue
+        if overlap > best_overlap:
+            best_video = solution.video_url
+            best_overlap = overlap
+            if not issue_terms:
+                break
+    return best_video
+
+
 def _solution_answer(solution):
     steps = _split_steps(solution.steps)
     desc = (solution.problem_description or '').strip()
@@ -1639,6 +1675,16 @@ def build_answer(query):
         answer = _clarify_answer(
             solution_ranked, device_tokens,
             identity_terms=query_identity, brand_words=brand_words,
+        )
+
+    if answer.get('steps') and not answer.get('video_url'):
+        answer['video_url'] = _tutorial_video(
+            solution_ranked,
+            brand_hits=brand_hits,
+            device_tokens=device_tokens,
+            identity_terms=query_identity if has_identity else None,
+            brand_words=brand_words,
+            issue_terms=query_tokens & _ISSUE_SIGNAL_TOKENS,
         )
 
     if answer.get('kind') != 'results':

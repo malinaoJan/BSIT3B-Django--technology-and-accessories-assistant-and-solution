@@ -27,7 +27,7 @@ from django.utils.text import get_valid_filename
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_http_methods, require_POST
 
-from .assistant import build_answer, search_terms
+from .assistant import build_answer, search_terms, _tokens
 from .gemini import enhance_answer
 from .recent_activity import get_recent_activities, record_recent_activity
 
@@ -249,6 +249,19 @@ def _solution_search(qs, query):
             'category__name', 'related_product__name', 'related_product__brand',
         ])
     ).distinct()
+
+
+def _specific_search(qs, query, fields):
+    """Require every query term to match at least one field."""
+    tokens = list(_tokens(query))
+    if not tokens:
+        return qs.none()
+    for token in tokens:
+        condition = Q()
+        for field in fields:
+            condition |= Q(**{field + '__icontains': token})
+        qs = qs.filter(condition)
+    return qs.distinct()
 
 
 def _load_legacy_names(path, key):
@@ -714,8 +727,7 @@ def _attachment_notice(attachments):
     return 'Attached %s: %s.' % (label, names)
 
 
-def _get_chat_history(request):
-    raw = request.session.get(CHAT_SESSION_KEY)
+def _normalize_chat_history(raw):
     if not isinstance(raw, list):
         return []
     history = []
@@ -742,6 +754,26 @@ def _get_chat_history(request):
     return history
 
 
+def _get_chat_history(request):
+    return _normalize_chat_history(request.session.get(CHAT_SESSION_KEY))
+
+
+def _latest_chat_turn(history):
+    last_user = None
+    for index in range(len(history) - 1, -1, -1):
+        if history[index].get('role') == 'user':
+            last_user = index
+            break
+    if last_user is None:
+        return []
+    turn = [history[last_user]]
+    for entry in history[last_user + 1:]:
+        if entry.get('role') == 'assistant':
+            turn.append(entry)
+            break
+    return turn
+
+
 def _save_chat_history(request, history):
     request.session[CHAT_SESSION_KEY] = history[-MAX_CHAT_MESSAGES:]
 
@@ -763,7 +795,11 @@ def _append_chat_turn(request, message, answer, attachments=None):
         )
     try:
         record_recent_activity(
-            request, 'assistant', activity_title, reverse('dashboard') + '#techfix'
+            request,
+            'assistant',
+            activity_title,
+            reverse('dashboard') + '#techfix',
+            chat_history=history,
         )
     except Exception:
         logger.exception('Recording recent activity failed')
@@ -879,6 +915,50 @@ def scheduled_assistant(request):
     return render(request, 'scheduled.html', {
         'chat_messages': _get_chat_history(request),
     })
+
+
+@login_required(login_url='login')
+def recent_activity_detail(request, pk):
+    from django.http import Http404
+
+    from .models import RecentActivity
+
+    activity = RecentActivity.objects.filter(
+        user=request.user, pk=pk
+    ).first()
+    if activity is None:
+        raise Http404('Recent activity not found.')
+
+    RecentActivity.objects.filter(pk=activity.pk).update(
+        created_at=timezone.now()
+    )
+
+    if activity.kind != 'assistant':
+        return redirect(activity.url)
+
+    turn = _latest_chat_turn(
+        _normalize_chat_history(activity.chat_history)
+    )
+    if not turn:
+        try:
+            answer = _create_chat_answer(activity.title, [])
+        except Exception:
+            logger.exception('Rebuilding recent activity failed')
+            answer = None
+        if answer:
+            turn = [
+                {'role': 'user', 'text': activity.title},
+                {'role': 'assistant', 'answer': _serialize_answer(answer)},
+            ]
+            RecentActivity.objects.filter(pk=activity.pk).update(
+                chat_history=turn
+            )
+        else:
+            request.session.pop(CHAT_SESSION_KEY, None)
+            return redirect(reverse('dashboard') + '?new=1')
+
+    _save_chat_history(request, turn)
+    return redirect(reverse('dashboard') + '#techfix')
 
 
 @require_POST
@@ -1018,10 +1098,16 @@ def _get_brand_folders():
 
 
 def _library_image_search(qs, query):
-    """Name, brand and category search for Library photos."""
-    return qs.filter(
-        _search_filter(query, ['name', 'brand', 'category__name'])
-    ).distinct()
+    """Specific name, brand and category search for Library photos."""
+    tokens = list(_tokens(query))
+    if not tokens:
+        return qs.none()
+    for token in tokens:
+        condition = Q()
+        for field in ('name', 'brand', 'category__name'):
+            condition |= Q(**{field + '__icontains': token})
+        qs = qs.filter(condition)
+    return qs.distinct()
 
 
 _LIBRARY_FEATURED_PRODUCTS = (
@@ -1106,12 +1192,15 @@ def brand_list(request):
     if query:
         folders = [f for f in folders if query.lower() in f['name'].lower()]
     image_items = _get_library_images(query)
+    active_tab = (
+        'images' if query and image_items and not folders else 'suggested'
+    )
     return render(request, 'catalog/brands.html', {
         'brands': folders,
         'query': query,
         'total': len(folders),
         'image_items': image_items,
-        'active_tab': 'suggested',
+        'active_tab': active_tab,
     })
 
 
@@ -1141,9 +1230,16 @@ def brand_detail(request, brand):
         | (Q(related_product__isnull=True) & Q(title__icontains=canonical))
     ).select_related('category', 'related_product').order_by('-created_at')
     if query:
-        products = _product_search(products, query)
-        accessories = _accessory_search(accessories, query)
-        solutions = _solution_search(solutions, query)
+        products = _specific_search(products, query, [
+            'name', 'brand', 'description', 'specifications', 'category__name',
+        ])
+        accessories = _specific_search(accessories, query, [
+            'name', 'brand', 'description', 'compatibility_notes', 'category__name',
+        ])
+        solutions = _specific_search(solutions, query, [
+            'title', 'problem_description', 'steps', 'difficulty_level',
+            'category__name', 'related_product__name', 'related_product__brand',
+        ])
     return render(request, 'catalog/brand_detail.html', {
         'brand': canonical,
         'accent': _brand_accent(canonical),

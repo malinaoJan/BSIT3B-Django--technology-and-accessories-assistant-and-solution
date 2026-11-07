@@ -1,4 +1,4 @@
-{% load humanize %}
+{% load humanize assistant_extras %}
 <div class="assistant-reply">
   <div class="assistant-avatar"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
   <div class="assistant-reply-body">
@@ -142,10 +142,24 @@
     <div class="assistant-safety"><i class="fa-solid fa-triangle-exclamation"></i><span>{{ answer.safety }}</span></div>
     {% endif %}
 
+    {% if answer.video_url %}
+    <div class="assistant-video">
+      <div class="assistant-video-head"><i class="fa-brands fa-youtube"></i> Video tutorial</div>
+      {% with embed_url=answer.video_url|youtube_embed %}
+      {% if embed_url %}
+      <div class="assistant-video-frame">
+        <iframe src="{{ embed_url }}" title="Video tutorial" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+      </div>
+      {% else %}
+      <a class="assistant-video-link" href="{{ answer.video_url }}" target="_blank" rel="noopener"><i class="fa-solid fa-play"></i> Watch the video tutorial</a>
+      {% endif %}
+      {% endwith %}
+    </div>
+    {% endif %}
+
     {% if answer.kind == 'solution' %}
     <div class="assistant-actions">
       <a href="{% url 'solution_list' %}" class="btn btn-outline-primary">Browse repair guides</a>
-      {% if answer.video_url %}<a href="{{ answer.video_url }}" target="_blank" rel="noopener" class="btn btn-outline-primary"><i class="fa-brands fa-youtube me-1"></i>Video guide</a>{% endif %}
     </div>
     {% endif %}
 

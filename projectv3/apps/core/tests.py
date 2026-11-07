@@ -20,7 +20,7 @@ from .gemini import (
     _parse_gemini_data,
     enhance_answer,
 )
-from .models import Accessory, Category, Product, Review, Solution
+from .models import Accessory, Category, Product, RecentActivity, Review, Solution
 from .views import CHAT_SESSION_KEY, _context_query
 from .management.commands.import_online_ratings import (
     _candidate_conflicts,
@@ -578,6 +578,61 @@ class LibraryViewTests(TestCase):
         self.assertContains(response, 'Sony Camera Phone')
         self.assertNotContains(response, 'Unrelated Camera Phone')
 
+    def test_library_product_search_opens_matching_catalog_items(self):
+        response = self.client.get(reverse('brand_list'), {'q': 'Test Laptop'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'data-initial-tab="images"')
+        self.assertContains(response, 'Test Laptop')
+
+    def test_library_product_search_only_returns_specific_matches(self):
+        for name in (
+            'Infinix Hot 50',
+            'Infinix Hot 60',
+            'Infinix Note 50',
+        ):
+            Product.objects.create(
+                name=name,
+                category=self.category,
+                brand='Infinix',
+                description='A phone.',
+                price='199.00',
+                stock_quantity=1,
+            )
+
+        response = self.client.get(
+            reverse('brand_list'), {'q': 'Infinix Hot 50'}
+        )
+
+        self.assertContains(response, 'Infinix Hot 50')
+        self.assertNotContains(response, 'Infinix Hot 60')
+        self.assertNotContains(response, 'Infinix Note 50')
+
+    def test_brand_folder_search_only_returns_specific_matches(self):
+        for name in ('Test Phone 50', 'Test Phone 60', 'Test Tab 50'):
+            Product.objects.create(
+                name=name,
+                category=self.category,
+                brand='TestBrand',
+                description='A device.',
+                price='199.00',
+                stock_quantity=1,
+            )
+
+        response = self.client.get(
+            reverse('brand_detail', args=['TestBrand']),
+            {'q': 'Phone 50'},
+        )
+
+        self.assertContains(response, 'Test Phone 50')
+        self.assertNotContains(response, 'Test Phone 60')
+        self.assertNotContains(response, 'Test Tab 50')
+
+    def test_library_brand_search_still_opens_folder_tab(self):
+        response = self.client.get(reverse('brand_list'), {'q': 'TestBrand'})
+
+        self.assertContains(response, 'data-initial-tab="suggested"')
+
     def test_library_images_show_all_products_and_accessories(self):
         Product.objects.create(
             name='Old Catalog Laptop',
@@ -894,6 +949,147 @@ class ChatEndpointTests(TestCase):
             data['recent_activities'][0]['url'],
             reverse('dashboard') + '#techfix',
         )
+
+    @patch('apps.core.views.enhance_answer')
+    def test_clicking_recent_chat_shows_only_that_activity(
+        self, mocked_enhance
+    ):
+        mocked_enhance.side_effect = [
+            ai_answer(summary='First answer.'),
+            ai_answer(summary='Second answer.'),
+        ]
+        self.post_message('First question')
+        self.post_message('Second question')
+        activity = RecentActivity.objects.get(
+            user=self.user, title='Second question'
+        )
+        self.assertEqual(len(activity.chat_history), 4)
+
+        session = self.client.session
+        session[CHAT_SESSION_KEY] = [
+            {'role': 'user', 'text': 'Another question'},
+            {
+                'role': 'assistant',
+                'answer': ai_answer(summary='A different answer.'),
+            },
+        ]
+        session.save()
+
+        response = self.client.get(
+            reverse('recent_activity', args=[activity.pk])
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse('dashboard') + '#techfix')
+        history = self.client.session[CHAT_SESSION_KEY]
+        self.assertEqual(len(history), 2)
+        self.assertEqual(history[0], {'role': 'user', 'text': 'Second question'})
+        self.assertEqual(history[1]['answer']['summary'], 'Second answer.')
+
+    @patch('apps.core.views.enhance_answer')
+    def test_clicking_older_recent_chat_shows_that_turn(self, mocked_enhance):
+        mocked_enhance.side_effect = [
+            ai_answer(summary='First answer.'),
+            ai_answer(summary='Second answer.'),
+        ]
+        self.post_message('First question')
+        self.post_message('Second question')
+        activity = RecentActivity.objects.get(
+            user=self.user, title='First question'
+        )
+
+        response = self.client.get(
+            reverse('recent_activity', args=[activity.pk])
+        )
+
+        self.assertEqual(response.status_code, 302)
+        history = self.client.session[CHAT_SESSION_KEY]
+        self.assertEqual(len(history), 2)
+        self.assertEqual(history[0], {'role': 'user', 'text': 'First question'})
+        self.assertEqual(history[1]['answer']['summary'], 'First answer.')
+
+    @patch('apps.core.views.enhance_answer')
+    def test_clicking_legacy_recent_chat_rebuilds_and_shows_it(
+        self, mocked_enhance
+    ):
+        mocked_enhance.return_value = ai_answer(summary='Rebuilt answer.')
+        activity = RecentActivity.objects.create(
+            user=self.user,
+            kind='assistant',
+            title='Old question',
+            url=reverse('dashboard') + '#techfix',
+            chat_history=[],
+        )
+
+        response = self.client.get(
+            reverse('recent_activity', args=[activity.pk])
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse('dashboard') + '#techfix')
+        history = self.client.session[CHAT_SESSION_KEY]
+        self.assertEqual(history[0], {'role': 'user', 'text': 'Old question'})
+        self.assertEqual(history[1]['answer']['summary'], 'Rebuilt answer.')
+        activity.refresh_from_db()
+        self.assertEqual(len(activity.chat_history), 2)
+
+    def test_clicking_non_chat_recent_opens_its_page(self):
+        category = Category.objects.create(name='Recent laptops')
+        product = Product.objects.create(
+            name='Recent Laptop',
+            category=category,
+            brand='TestBrand',
+        )
+        self.client.get(reverse('product_detail', args=[product.pk]))
+        activity = RecentActivity.objects.get(user=self.user, kind='product')
+
+        response = self.client.get(
+            reverse('recent_activity', args=[activity.pk])
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            response.url, reverse('product_detail', args=[product.pk])
+        )
+
+    @patch('apps.core.views.enhance_answer')
+    def test_clicking_recent_activity_moves_it_to_top(self, mocked_enhance):
+        mocked_enhance.return_value = ai_answer()
+        self.post_message('First question')
+        self.post_message('Second question')
+        first = RecentActivity.objects.get(
+            user=self.user, title='First question'
+        )
+
+        response = self.client.get(
+            reverse('recent_activity', args=[first.pk])
+        )
+
+        self.assertEqual(response.status_code, 302)
+        titles = list(
+            RecentActivity.objects.filter(user=self.user)
+            .order_by('-created_at', '-pk')
+            .values_list('title', flat=True)
+        )
+        self.assertEqual(titles[0], 'First question')
+
+    def test_recent_activity_cannot_be_opened_by_another_user(self):
+        other = get_user_model().objects.create_user(
+            username='other-user', password='secret1234'
+        )
+        activity = RecentActivity.objects.create(
+            user=other,
+            kind='assistant',
+            title='Private question',
+            url=reverse('dashboard') + '#techfix',
+            chat_history=[],
+        )
+
+        response = self.client.get(
+            reverse('recent_activity', args=[activity.pk])
+        )
+
+        self.assertEqual(response.status_code, 404)
 
     @patch('apps.core.views.enhance_answer')
     def test_chat_accepts_file_attachments(self, mocked_enhance):
@@ -1446,6 +1642,40 @@ class StrictAssistantResultsTests(TestCase):
         self.assertEqual(answer['product'].brand, 'Apple')
         self.assertIn('iPhone', answer['title'])
         self.assertEqual(answer['suggestions'], [])
+
+    def test_repair_guide_answer_renders_video_tutorial(self):
+        video_url = 'https://www.youtube.com/watch?v=rtezh9blX78'
+        self.solution.video_url = video_url
+        self.solution.save(update_fields=['video_url'])
+
+        answer = build_answer('iphone battery drains')
+        self.assertEqual(answer['video_url'], video_url)
+
+        with patch(
+            'apps.core.views.enhance_answer',
+            side_effect=lambda message, answer, **kwargs: answer,
+        ):
+            response = self.client.post(
+                reverse('assistant_chat'),
+                data=json.dumps({'message': 'iphone battery drains'}),
+                content_type='application/json',
+            )
+
+        html = response.json()['html']
+        self.assertIn('assistant-video', html)
+        self.assertIn(
+            'https://www.youtube-nocookie.com/embed/rtezh9blX78', html
+        )
+
+    def test_generic_repair_answer_uses_matching_solution_video(self):
+        video_url = 'https://www.youtube.com/watch?v=rtezh9blX78'
+        self.solution.video_url = video_url
+        self.solution.save(update_fields=['video_url'])
+
+        answer = build_answer('phone battery drains overnight')
+
+        self.assertEqual(answer['kind'], 'fallback')
+        self.assertEqual(answer['video_url'], video_url)
 
     def test_iphone_accessory_query_returns_only_iphone_cases(self):
         answer = build_answer('iphone case')
