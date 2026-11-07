@@ -835,6 +835,51 @@ body.chat-active .explore-catalog {
   height: 22px;
 }
 
+.composer-camera,
+.scheduled-camera {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #ececec;
+  color: #171717;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55),
+    0 2px 8px rgba(0, 0, 0, 0.28);
+  transition: background-color 0.14s ease, transform 0.14s ease,
+    box-shadow 0.14s ease;
+}
+
+.composer-camera:hover,
+.scheduled-camera:hover {
+  background: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+.composer-camera:active,
+.scheduled-camera:active {
+  transform: scale(0.95);
+}
+
+.composer-camera:focus-visible,
+.scheduled-camera:focus-visible {
+  outline: 2px solid var(--cg-accent-hover);
+  outline-offset: 2px;
+}
+
+.composer-camera svg,
+.scheduled-camera svg {
+  display: block;
+  width: 20px;
+  height: 20px;
+}
+
 .composer-attach {
   position: relative;
   flex: 0 0 auto;
@@ -1201,6 +1246,297 @@ body.chat-active .explore-catalog {
 .composer-send:hover {
   background: var(--cg-accent-hover);
   transform: translateY(-1px);
+}
+
+/* Camera capture */
+body.camera-open {
+  overflow: hidden;
+}
+
+.camera-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.camera-modal[hidden] {
+  display: none;
+}
+
+.camera-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(3, 0, 10, 0.74);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.camera-dialog {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(560px, 100%);
+  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
+  padding: 18px;
+  overflow-y: auto;
+  background: var(--cg-surface-2);
+  border: 1px solid var(--cg-border-strong);
+  border-radius: 24px;
+  box-shadow: 0 30px 90px -30px rgba(0, 0, 0, 0.9);
+}
+
+.camera-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.camera-title {
+  margin: 0;
+  color: var(--cg-text);
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.camera-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--cg-muted);
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.14s ease, color 0.14s ease;
+}
+
+.camera-close:hover,
+.camera-close:focus-visible {
+  background: var(--cg-hover);
+  color: var(--cg-text);
+  outline: none;
+}
+
+.camera-stage {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: #05020a;
+  border: 1px solid var(--cg-border);
+  border-radius: 16px;
+}
+
+.camera-video,
+.camera-photo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.camera-video[hidden],
+.camera-photo[hidden] {
+  display: none;
+}
+
+.camera-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: rgba(5, 2, 10, 0.86);
+  color: var(--cg-muted);
+  font-size: 0.88rem;
+}
+
+.camera-loading[hidden] {
+  display: none;
+}
+
+.camera-loading i {
+  color: var(--cg-accent-hover);
+  font-size: 1.2rem;
+}
+
+.camera-message {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  left: 12px;
+  padding: 10px 12px;
+  background: rgba(5, 2, 10, 0.9);
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  border-radius: 12px;
+  color: #fecaca;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.camera-message[hidden] {
+  display: none;
+}
+
+.camera-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 8px 4px;
+}
+
+.camera-controls[hidden] {
+  display: none;
+}
+
+.camera-side {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 1px solid var(--cg-border);
+  border-radius: 50%;
+  background: var(--cg-surface);
+  color: var(--cg-muted);
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background-color 0.14s ease, color 0.14s ease;
+}
+
+.camera-side:hover,
+.camera-side:focus-visible {
+  background: var(--cg-hover);
+  color: var(--cg-text);
+  outline: none;
+}
+
+.camera-side[hidden] {
+  display: none;
+}
+
+.camera-shutter {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  border: 4px solid rgba(255, 255, 255, 0.92);
+  border-radius: 50%;
+  background: var(--cg-accent);
+  cursor: pointer;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.22);
+  transition: transform 0.12s ease, background-color 0.15s ease;
+}
+
+.camera-shutter span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #c4b5fd, #8b5cf6 64%);
+}
+
+.camera-shutter:hover {
+  transform: scale(1.04);
+}
+
+.camera-shutter:active {
+  transform: scale(0.96);
+}
+
+.camera-shutter:disabled {
+  opacity: 0.45;
+  cursor: wait;
+  transform: none;
+}
+
+.camera-shutter[hidden] {
+  display: none;
+}
+
+.camera-review {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding-top: 16px;
+}
+
+.camera-review[hidden] {
+  display: none;
+}
+
+.camera-btn {
+  height: 44px;
+  padding: 0 16px;
+  border-radius: 12px;
+  border: 1px solid var(--cg-border);
+  font-family: var(--cg-font);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.camera-btn-ghost {
+  background: var(--cg-surface);
+  color: var(--cg-text);
+}
+
+.camera-btn-ghost:hover,
+.camera-btn-ghost:focus-visible {
+  background: var(--cg-hover);
+  border-color: var(--cg-border-strong);
+  outline: none;
+}
+
+.camera-btn-primary {
+  background: var(--cg-accent);
+  border-color: transparent;
+  color: #ffffff;
+}
+
+.camera-btn-primary:hover,
+.camera-btn-primary:focus-visible {
+  background: var(--cg-accent-hover);
+  outline: none;
+}
+
+@media (max-width: 600px) {
+  .camera-modal {
+    padding: 12px;
+  }
+
+  .camera-dialog {
+    max-height: calc(100vh - 24px);
+    max-height: calc(100dvh - 24px);
+    padding: 14px;
+    border-radius: 20px;
+  }
+
+  .camera-stage {
+    aspect-ratio: 3 / 4;
+  }
+
+  .camera-shutter {
+    width: 58px;
+    height: 58px;
+  }
 }
 
 /* Promo card */

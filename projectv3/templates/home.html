@@ -36,6 +36,14 @@
         <span>Think</span>
       </button>
       <div class="composer-actions">
+        <button type="button" class="composer-camera" id="cameraButton" data-camera-open
+                title="Take a photo" aria-label="Take a photo">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true" focusable="false">
+            <path d="M20.5 15.9V10.5A2.5 2.5 0 0 0 18 8h-2.2l-1.1-2.4H9.3L8.2 8H5.5A2.5 2.5 0 0 0 3 10.5v6A2.5 2.5 0 0 0 5.5 19h10.7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="11.5" cy="13.5" r="3.1" fill="currentColor"/>
+            <circle cx="20.2" cy="20.2" r="2.2" fill="currentColor"/>
+          </svg>
+        </button>
         <button type="button" class="composer-icon" id="voiceInputButton" title="Voice input" aria-label="Start voice input" aria-pressed="false">
           <i class="fa-solid fa-microphone"></i>
         </button>
@@ -48,6 +56,8 @@
   </form>
 
 </div>
+
+{% include "catalog/_camera_capture.html" %}
 
 <div class="explore-catalog" id="techfix">
   <div class="chat-thread" id="chat-thread" aria-live="polite" aria-relevant="additions">
@@ -104,7 +114,8 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/chat-attachments.js' %}?v=1"></script>
+<script src="{% static 'js/chat-attachments.js' %}?v=2"></script>
+<script src="{% static 'js/camera-capture.js' %}?v=1"></script>
 <script>
 (function () {
   var form = document.getElementById('techfix-search-form');
@@ -127,6 +138,14 @@
   var attachments = window.TechFixAttachments
     ? window.TechFixAttachments.create(form, { onStatus: setVoiceStatus })
     : null;
+
+  if (window.TechFixCamera && attachments) {
+    window.TechFixCamera.create(
+      document.getElementById('cameraButton'),
+      attachments,
+      { onStatus: setVoiceStatus }
+    );
+  }
 
   function setVoiceStatus(message) {
     if (!voiceStatus) return;

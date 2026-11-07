@@ -405,25 +405,12 @@ def _serialize_matches(matches):
     }
 
 
-def _products_mentioned_in_answer(answer):
+def _products_mentioned_in_message(message):
+    """Return catalog products whose full name the user explicitly mentioned."""
     from .models import Product
 
-    text_parts = [
-        answer.get('title'),
-        answer.get('summary'),
-        answer.get('first_step'),
-    ]
-    steps = answer.get('steps') or []
-    if isinstance(steps, (list, tuple)):
-        text_parts.extend(steps)
-    answer_text = ' '.join(
-        str(part).strip() for part in text_parts if part
-    )
-    if (
-        not answer_text
-        or answer.get('kind') == 'results'
-        or answer.get('badge') == 'No exact match'
-    ):
+    text = (message or '').strip()
+    if not text:
         return []
 
     catalog_names = list(
@@ -448,24 +435,33 @@ def _products_mentioned_in_answer(answer):
     )
     mentioned_ids = list(dict.fromkeys(
         names_by_text[match.group(1).casefold()]
-        for match in product_pattern.finditer(answer_text)
+        for match in product_pattern.finditer(text)
     ))
-    selected_product = answer.get('product')
-    selected_product_id = getattr(selected_product, 'pk', None)
-    if selected_product_id is not None:
-        mentioned_ids = [
-            selected_product_id,
-            *(
-                product_id for product_id in mentioned_ids
-                if product_id != selected_product_id
-            ),
-        ]
+    if not mentioned_ids:
+        return []
     products = Product.objects.select_related('category').in_bulk(mentioned_ids)
     return [
-        _serialize_product(products[product_id])
+        products[product_id]
         for product_id in mentioned_ids
         if product_id in products
     ]
+
+
+def _serialize_mentioned_products(answer):
+    selected_product = answer.get('product')
+    products = [
+        selected_product,
+        *(answer.get('mentioned_products') or []),
+    ]
+    seen_ids = set()
+    serialized = []
+    for product in products:
+        product_id = getattr(product, 'pk', None)
+        if product_id is None or product_id in seen_ids:
+            continue
+        seen_ids.add(product_id)
+        serialized.append(_serialize_product(product))
+    return serialized
 
 
 def _serialize_answer(answer):
@@ -490,8 +486,12 @@ def _serialize_answer(answer):
         'notice': str(answer.get('notice') or ''),
         'mentioned_products': (
             []
-            if answer.get('brand_overview')
-            else _products_mentioned_in_answer(answer)
+            if (
+                answer.get('brand_overview')
+                or answer.get('kind') == 'results'
+                or answer.get('badge') == 'No exact match'
+            )
+            else _serialize_mentioned_products(answer)
         ),
     }
     if serialized['kind'] == 'results':
@@ -804,8 +804,9 @@ def _is_chat_question(message):
 
 
 def _create_chat_answer(message, history, attachments=None):
+    context_query = _context_query(message, history)
     try:
-        local_answer = build_answer(_context_query(message, history))
+        local_answer = build_answer(context_query)
     except Exception:
         logger.exception('Local assistant answer failed')
         local_answer = None
@@ -833,9 +834,14 @@ def _create_chat_answer(message, history, attachments=None):
                     answer['badge'] = local_answer['badge']
                 if local_answer.get('suggestions') and not answer.get('suggestions'):
                     answer['suggestions'] = local_answer['suggestions']
-        return answer
+    else:
+        answer = local_answer
 
-    return local_answer
+    if answer:
+        answer['mentioned_products'] = _products_mentioned_in_message(
+            context_query
+        )
+    return answer
 
 
 @never_cache

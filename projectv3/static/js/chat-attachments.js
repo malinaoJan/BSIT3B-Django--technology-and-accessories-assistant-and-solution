@@ -115,30 +115,30 @@
 
     function addFiles(fileList) {
       var files = Array.prototype.slice.call(fileList || []);
-      if (!files.length) return;
+      if (!files.length) return false;
 
       for (var index = 0; index < files.length; index += 1) {
         var extension = extensionOf(files[index].name);
         if (ALLOWED_EXTENSIONS.indexOf(extension) === -1) {
           setStatus('"' + files[index].name + '" is not a supported file type.');
-          return;
+          return false;
         }
         if (files[index].size > MAX_FILE_BYTES) {
           setStatus('"' + files[index].name + '" is larger than 10 MB.');
-          return;
+          return false;
         }
       }
 
       if (pending.length + files.length > MAX_ATTACHMENTS) {
         setStatus('You can attach up to ' + MAX_ATTACHMENTS + ' files at a time.');
-        return;
+        return false;
       }
 
       var total = pending.reduce(function (sum, item) { return sum + item.size; }, 0)
         + files.reduce(function (sum, file) { return sum + file.size; }, 0);
       if (total > MAX_TOTAL_BYTES) {
         setStatus('Attachments must be 25 MB or smaller in total.');
-        return;
+        return false;
       }
 
       files.forEach(function (file) {
@@ -154,6 +154,7 @@
 
       setStatus('');
       render();
+      return true;
     }
 
     function renderMessageAttachments(container, attachments) {
@@ -242,6 +243,7 @@
     });
 
     return {
+      addFiles: addFiles,
       files: function () {
         return pending.map(function (item) { return item.file; });
       },

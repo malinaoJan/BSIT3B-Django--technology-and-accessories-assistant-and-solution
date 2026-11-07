@@ -236,19 +236,23 @@ class Product(models.Model):
 
     @property
     def display_rating(self):
+        if self.online_rating is not None:
+            return self.online_rating
         if self.review_total:
             return self.average_rating
-        return self.online_rating
+        return None
 
     @property
     def display_rating_count(self):
+        if self.online_rating_count:
+            return self.online_rating_count
         if self.review_total:
             return self.review_total
-        return self.online_rating_count or 0
+        return 0
 
     @property
     def rating_is_online(self):
-        return not self.review_total and self.online_rating is not None
+        return self.online_rating is not None
 
 
 class Accessory(models.Model):

@@ -2,6 +2,7 @@ import base64
 import json
 import os
 import tempfile
+from decimal import Decimal
 from io import StringIO
 from unittest.mock import patch
 
@@ -21,6 +22,11 @@ from .gemini import (
 )
 from .models import Accessory, Category, Product, Review, Solution
 from .views import CHAT_SESSION_KEY, _context_query
+from .management.commands.import_online_ratings import (
+    _candidate_conflicts,
+    pick_candidate,
+    product_search_variants,
+)
 from apps.users.models import PhoneProfile
 
 
@@ -1501,7 +1507,9 @@ class StrictAssistantResultsTests(TestCase):
         self.assertNotIn('Samsung Galaxy S25', html)
 
     @patch('apps.core.views.enhance_answer')
-    def test_ai_answer_links_only_products_named_in_its_response(self, mocked_enhance):
+    def test_ai_answer_does_not_link_products_the_user_did_not_name(
+        self, mocked_enhance
+    ):
         self.client.logout()
         named_phone = Product.objects.create(
             name='Samsung Galaxy S24 Ultra',
@@ -1514,12 +1522,6 @@ class StrictAssistantResultsTests(TestCase):
             category=self.category,
             brand='Apple',
             description='Apple flagship phone.',
-        )
-        unrelated_phone = Product.objects.create(
-            name='Google Pixel 9 Pro',
-            category=self.category,
-            brand='Google',
-            description='A phone not mentioned in the answer.',
         )
         mocked_enhance.return_value = ai_answer(
             kind='answer',
@@ -1539,15 +1541,67 @@ class StrictAssistantResultsTests(TestCase):
         self.assertEqual(response.status_code, 200)
         mocked_enhance.assert_called_once()
         html = response.json()['html']
-        self.assertIn('Samsung Galaxy S24 Ultra', html)
-        self.assertIn('iPhone 15 Pro Max', html)
-        self.assertNotIn(unrelated_phone.name, html)
+        self.assertNotIn(
+            'class="assistant-result assistant-mentioned-product"', html
+        )
+        self.assertNotIn(reverse('product_detail', args=[named_phone.pk]), html)
+        self.assertNotIn(reverse('product_detail', args=[named_iphone.pk]), html)
+
+    @patch('apps.core.views.enhance_answer')
+    def test_brand_only_message_does_not_show_a_random_product(
+        self, mocked_enhance
+    ):
+        self.client.logout()
+        mocked_enhance.return_value = ai_answer(
+            kind='answer',
+            title='Samsung overview',
+            summary='Samsung makes the Galaxy S25 Ultra and many other devices.',
+        )
+
+        response = self.client.post(
+            reverse('assistant_chat'),
+            data=json.dumps({'message': 'Samsung'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        html = response.json()['html']
+        self.assertIn('Samsung makes the Galaxy S25 Ultra', html)
+        self.assertNotIn(
+            'class="assistant-result assistant-mentioned-product"', html
+        )
+
+    @patch('apps.core.views.enhance_answer')
+    def test_message_mentioning_a_product_shows_that_specific_product(
+        self, mocked_enhance
+    ):
+        self.client.logout()
+        mocked_enhance.return_value = ai_answer(
+            kind='answer',
+            title='Flagship comparison',
+            summary='Both devices are strong choices.',
+        )
+
+        response = self.client.post(
+            reverse('assistant_chat'),
+            data=json.dumps({
+                'message': 'Is the Samsung Galaxy S25 Ultra a good phone?',
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        html = response.json()['html']
         self.assertEqual(
             html.count('class="assistant-result assistant-mentioned-product"'),
-            2,
+            1,
         )
-        self.assertIn(reverse('product_detail', args=[named_phone.pk]), html)
-        self.assertIn(reverse('product_detail', args=[named_iphone.pk]), html)
+        self.assertIn(
+            reverse('product_detail', args=[self.samsung_ultra.pk]), html
+        )
+        self.assertNotIn(
+            reverse('product_detail', args=[self.iphone_17.pk]), html
+        )
 
     @patch('apps.core.views.build_answer')
     @patch('apps.core.views.enhance_answer')
@@ -1923,6 +1977,113 @@ class ReviewTests(TestCase):
         self.assertContains(response, 'Demo content:')
         self.assertContains(response, 'review-sample-badge')
         self.assertContains(response, 'not real customer feedback')
+
+    def test_online_rating_takes_display_priority(self):
+        self.product.online_rating = Decimal('4.35')
+        self.product.online_rating_count = 123
+        self.product.online_rating_source = 'Smartprix'
+        self.product.save(update_fields=[
+            'online_rating',
+            'online_rating_count',
+            'online_rating_source',
+        ])
+        Review.objects.create(
+            product=self.product,
+            user=self.user,
+            rating=2,
+            title='Local review',
+            comment='Local review body.',
+        )
+
+        self.assertEqual(self.product.display_rating, Decimal('4.35'))
+        self.assertEqual(self.product.display_rating_count, 123)
+        self.assertTrue(self.product.rating_is_online)
+
+        response = self.client.get(
+            reverse('product_detail', args=[self.product.pk])
+        )
+        self.assertContains(response, '123 online ratings')
+        self.assertContains(response, 'on Smartprix')
+
+
+class OnlineRatingMatchTests(SimpleTestCase):
+    def test_search_variants_remove_year_and_specs(self):
+        variants = product_search_variants('Lenovo Tab Plus Gen 2 (2026)')
+
+        self.assertIn('Lenovo Tab Plus Gen 2', variants)
+
+    def test_year_mismatch_is_rejected(self):
+        self.assertTrue(_candidate_conflicts(
+            'Asus ROG Strix SCAR 18 2026 G835LXG Gaming Laptop',
+            'ASUS ROG Strix SCAR 18 (2025)',
+        ))
+
+    def test_older_candidate_cpu_year_is_rejected(self):
+        self.assertTrue(_candidate_conflicts(
+            'Gigabyte Aero 14 OLED BMF Laptop (13th Gen Core i7)',
+            'Gigabyte Aero 14 (2017)',
+        ))
+        self.assertFalse(_candidate_conflicts(
+            'Lenovo Legion 5 15IMH6 Gaming Laptop (10th Gen Core i5)',
+            'Lenovo Legion 5 15 (2020)',
+        ))
+
+    def test_missing_or_different_generation_is_rejected(self):
+        self.assertTrue(_candidate_conflicts(
+            'Lenovo ThinkBook 14 Gen 9 Laptop',
+            'Lenovo ThinkBook 14 G6 (2024)',
+        ))
+        self.assertTrue(_candidate_conflicts(
+            'Lenovo Yoga Pro 7i Aura Edition Gen 11 Laptop',
+            'Lenovo Yoga Pro 9i 16 Gen 11 (2026)',
+        ))
+
+    def test_reordered_model_tokens_are_matched(self):
+        product = Product(name='MSI GF63 Thin 12VE', brand='MSI')
+        candidates = [(
+            'MSI Thin GF63 12VE-080IN Gaming Laptop '
+            '(12th Gen Core i7/ 8GB/ 512GB SSD)',
+            '/laptops/msi-thin-gf63-12ve',
+            4.35,
+        )]
+
+        chosen = pick_candidate(candidates, product, allow_prefix=True)
+
+        self.assertIsNotNone(chosen)
+        self.assertIn('Thin GF63 12VE', chosen[0])
+
+    def test_gpu_variant_must_match(self):
+        product = Product(name='Acer Swift X 14 RTX 4050')
+        candidates = [(
+            'Acer Swift X SFX14-41G Laptop (Ryzen 7/ 4GB Graph)',
+            '/laptops/acer-swift-x',
+            4.7,
+        )]
+
+        self.assertIsNone(
+            pick_candidate(candidates, product, allow_prefix=True)
+        )
+
+    def test_exact_year_candidate_wins(self):
+        product = Product(name='ASUS ROG Strix SCAR 18 (2025)')
+        candidates = [
+            (
+                'Asus ROG Strix SCAR 18 2026 Gaming Laptop '
+                '(Intel Core Ultra 9/ 32GB)',
+                '/laptops/scar-18-2026',
+                4.4,
+            ),
+            (
+                'Asus ROG Strix SCAR 18 2025 Gaming Laptop '
+                '(Intel Core Ultra 9/ 32GB)',
+                '/laptops/scar-18-2025',
+                4.3,
+            ),
+        ]
+
+        chosen = pick_candidate(candidates, product, allow_prefix=True)
+
+        self.assertIn('2025', chosen[0])
 
 
 class RequestedBrandCatalogCommandTests(TestCase):

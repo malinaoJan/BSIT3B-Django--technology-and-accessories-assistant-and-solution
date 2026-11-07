@@ -15,10 +15,10 @@
           {% else %}<i class="fa-regular fa-star" aria-hidden="true"></i>{% endif %}
           {% endfor %}
         </span>
-        {% if item.review_total %}
+        {% if item.online_rating %}
+        <span class="reviews-count">{% if item.online_rating_count %}{{ item.online_rating_count|intcomma }} online rating{{ item.online_rating_count|pluralize }}{% else %}Online rating{% endif %}{% if item.review_total %} · {{ item.review_total }} review{{ item.review_total|pluralize }}{% endif %}{% if item.online_rating_source %} · {{ item.online_rating_source }}{% endif %}</span>
+        {% elif item.review_total %}
         <span class="reviews-count">{{ item.review_total }} review{{ item.review_total|pluralize }}</span>
-        {% elif item.online_rating %}
-        <span class="reviews-count">{% if item.online_rating_count %}{{ item.online_rating_count|intcomma }} online rating{{ item.online_rating_count|pluralize }}{% else %}Online rating{% endif %}{% if item.online_rating_source %} · {{ item.online_rating_source }}{% endif %}</span>
         {% else %}
         <span class="reviews-count">No ratings yet</span>
         {% endif %}

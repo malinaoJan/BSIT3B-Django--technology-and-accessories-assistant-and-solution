@@ -4,6 +4,7 @@ from datetime import timedelta
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from apps.core.models import Accessory, Product, Review
@@ -412,6 +413,17 @@ class Command(BaseCommand):
             action='store_true',
             help='Remove all sample reviews and exit.',
         )
+        parser.add_argument(
+            '--category',
+            action='append',
+            default=[],
+            help='Limit to products/accessories in this category (repeatable).',
+        )
+        parser.add_argument(
+            '--missing-only',
+            action='store_true',
+            help='Only add reviews to items that do not have any reviews yet.',
+        )
 
     def handle(self, *args, **options):
         if options['clear']:
@@ -427,17 +439,50 @@ class Command(BaseCommand):
             raise CommandError('--max-reviews must be greater than or equal to --min-reviews.')
 
         rng = random.Random(options['seed'])
-        products = list(Product.objects.select_related('category').order_by('pk'))
-        accessories = list(Accessory.objects.select_related('category').order_by('pk'))
+        products_qs = Product.objects.select_related('category').order_by('pk')
+        accessories_qs = Accessory.objects.select_related('category').order_by('pk')
+        if options['category']:
+            products_qs = products_qs.filter(
+                category__name__in=options['category']
+            )
+            accessories_qs = accessories_qs.filter(
+                category__name__in=options['category']
+            )
+        products = list(products_qs)
+        accessories = list(accessories_qs)
+        if options['missing_only']:
+            reviewed_products = set(
+                Review.objects.exclude(product__isnull=True)
+                .values_list('product_id', flat=True)
+            )
+            reviewed_accessories = set(
+                Review.objects.exclude(accessory__isnull=True)
+                .values_list('accessory_id', flat=True)
+            )
+            products = [
+                item for item in products if item.pk not in reviewed_products
+            ]
+            accessories = [
+                item for item in accessories
+                if item.pk not in reviewed_accessories
+            ]
         items = [(item, True) for item in products]
         items.extend((item, False) for item in accessories)
 
         if not items:
+            if options['missing_only']:
+                self.stdout.write(
+                    self.style.SUCCESS('Every selected item already has reviews.')
+                )
+                return
             raise CommandError('There are no products or accessories to review.')
 
         now = timezone.now()
         with transaction.atomic():
-            Review.objects.filter(is_sample=True).delete()
+            if not options['missing_only']:
+                Review.objects.filter(is_sample=True).filter(
+                    Q(product__in=products) | Q(accessory__in=accessories)
+                ).delete()
             reviewers = _sample_users()
             reviews = []
             dates = []

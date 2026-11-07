@@ -1,0 +1,41 @@
+<div class="camera-modal" data-camera-modal hidden>
+  <div class="camera-backdrop" data-camera-close aria-hidden="true"></div>
+  <div class="camera-dialog" role="dialog" aria-modal="true" aria-labelledby="cameraDialogTitle">
+    <div class="camera-head">
+      <h2 class="camera-title" id="cameraDialogTitle">Take a photo</h2>
+      <button type="button" class="camera-close" data-camera-close aria-label="Close camera">
+        <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+      </button>
+    </div>
+
+    <div class="camera-stage">
+      <video class="camera-video" data-camera-video playsinline autoplay muted aria-label="Camera preview"></video>
+      <img class="camera-photo" data-camera-photo alt="Captured photo preview" hidden>
+      <div class="camera-loading" data-camera-loading>
+        <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>
+        <span>Starting camera...</span>
+      </div>
+      <div class="camera-message" data-camera-message role="status" aria-live="polite" hidden></div>
+    </div>
+
+    <canvas data-camera-canvas hidden></canvas>
+
+    <div class="camera-controls" data-camera-controls>
+      <button type="button" class="camera-side" data-camera-switch title="Switch camera" aria-label="Switch camera">
+        <i class="fa-solid fa-camera-rotate" aria-hidden="true"></i>
+      </button>
+      <button type="button" class="camera-shutter" data-camera-shutter title="Take photo" aria-label="Take photo">
+        <span aria-hidden="true"></span>
+      </button>
+      <button type="button" class="camera-side" data-camera-fallback title="Upload a photo instead" aria-label="Upload a photo instead">
+        <i class="fa-regular fa-image" aria-hidden="true"></i>
+      </button>
+    </div>
+
+    <div class="camera-review" data-camera-review hidden>
+      <button type="button" class="camera-btn camera-btn-ghost" data-camera-retake>Retake</button>
+      <button type="button" class="camera-btn camera-btn-primary" data-camera-use>Use photo</button>
+    </div>
+  </div>
+</div>
+<input type="file" class="camera-file-input" data-camera-file accept="image/*" capture="environment" hidden>
