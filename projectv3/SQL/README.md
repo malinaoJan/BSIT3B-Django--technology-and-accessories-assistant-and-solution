@@ -2,8 +2,9 @@
 
 Database + ERD for the `projectv3` system.
 
-Both SQL files mirror the current Django schema: 10 framework tables
-(`auth_*`, `django_*`) + 6 app tables (`techfix_*`, `tblinfo`).
+Both SQL files mirror the current Django schema: 17 framework tables
+(`auth_*`, `django_*`, `account_*`, `socialaccount_*`) + 9 app tables
+(`techfix_*`, `users_phoneprofile`, `tblinfo`).
 
 ## Quick start
 - **MySQL:** import `techfix_database.sql` (creates `techfix_db`), then run

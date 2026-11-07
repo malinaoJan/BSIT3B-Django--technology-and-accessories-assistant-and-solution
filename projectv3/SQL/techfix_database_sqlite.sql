@@ -1,21 +1,29 @@
 -- ============================================================
 -- TECHFIX System Database — SQLite version
--- Project: projectv3 (Django 6.1.2: apps.core + apps.info + Django built-ins)
--- Generated: 2026-10-28
+-- Project: projectv3 (Django 6.1.2)
+-- Generated: 2026-11-07
 --
 -- Exact schema Django creates today via:
 --   python manage.py migrate
--- (contenttypes.0001, auth.0001..0012, admin.0001..0003, sessions.0001,
---  core.0001_initial, info.0001_initial)
 --
--- Domain tables:
+-- Migrations mirrored:
+--   contenttypes.0001..0002, auth.0001..0012, admin.0001..0003,
+--   sessions.0001, sites.0001..0002,
+--   account.0001..0009, socialaccount.0001..0006,
+--   core.0001..0008, info.0001, users.0001
+--
+-- Domain tables (9):
 --   techfix_category, techfix_product, techfix_accessory,
---   techfix_accessory_compatible_products, techfix_solution, tblinfo
+--   techfix_accessory_compatible_products, techfix_solution,
+--   techfix_review, techfix_recent_activity, users_phoneprofile, tblinfo
 --
--- Supporting Django tables:
---   django_migrations, django_content_type, auth_permission, auth_group,
---   auth_user, auth_group_permissions, auth_user_groups,
---   auth_user_user_permissions, django_admin_log, django_session
+-- Supporting tables (17):
+--   django_migrations, django_content_type, django_site, auth_permission,
+--   auth_group, auth_user, auth_group_permissions, auth_user_groups,
+--   auth_user_user_permissions, django_admin_log, django_session,
+--   account_emailaddress, account_emailconfirmation,
+--   socialaccount_socialaccount, socialaccount_socialapp,
+--   socialaccount_socialapp_sites, socialaccount_socialtoken
 --
 -- To apply to an empty database:
 --   sqlite3 db.sqlite3 < techfix_database_sqlite.sql
@@ -134,11 +142,101 @@ CREATE TABLE IF NOT EXISTS "django_session" (
 CREATE INDEX IF NOT EXISTS "django_session_expire_date_a5c62663"
   ON "django_session" ("expire_date");
 
+CREATE TABLE IF NOT EXISTS "django_site" (
+  "id" integer NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "name" varchar(50) NOT NULL,
+  "domain" varchar(100) NOT NULL UNIQUE
+);
+
 -- ============================================================
--- Application tables (apps.core / apps.info)
+-- django-allauth tables (account + socialaccount)
 -- ============================================================
 
--- techfix_category
+CREATE TABLE IF NOT EXISTS "account_emailaddress" (
+  "id" integer NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "verified" bool NOT NULL,
+  "primary" bool NOT NULL,
+  "user_id" integer NOT NULL REFERENCES "auth_user" ("id") DEFERRABLE INITIALLY DEFERRED,
+  "email" varchar(254) NOT NULL
+);
+CREATE INDEX IF NOT EXISTS "account_emailaddress_email_03be32b2"
+  ON "account_emailaddress" ("email");
+CREATE INDEX IF NOT EXISTS "account_emailaddress_user_id_2c513194"
+  ON "account_emailaddress" ("user_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "account_emailaddress_user_id_email_987c8728_uniq"
+  ON "account_emailaddress" ("user_id", "email");
+CREATE UNIQUE INDEX IF NOT EXISTS "unique_primary_email"
+  ON "account_emailaddress" ("user_id", "primary") WHERE "primary" = 1;
+CREATE UNIQUE INDEX IF NOT EXISTS "unique_verified_email"
+  ON "account_emailaddress" ("email") WHERE "verified" = 1;
+
+CREATE TABLE IF NOT EXISTS "account_emailconfirmation" (
+  "id" integer NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "created" datetime NOT NULL,
+  "sent" datetime NULL,
+  "key" varchar(64) NOT NULL UNIQUE,
+  "email_address_id" integer NOT NULL REFERENCES "account_emailaddress" ("id") DEFERRABLE INITIALLY DEFERRED
+);
+CREATE INDEX IF NOT EXISTS "account_emailconfirmation_email_address_id_5b7f8c58"
+  ON "account_emailconfirmation" ("email_address_id");
+
+CREATE TABLE IF NOT EXISTS "socialaccount_socialaccount" (
+  "id" integer NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "provider" varchar(200) NOT NULL,
+  "uid" varchar(191) NOT NULL,
+  "last_login" datetime NOT NULL,
+  "date_joined" datetime NOT NULL,
+  "user_id" integer NOT NULL REFERENCES "auth_user" ("id") DEFERRABLE INITIALLY DEFERRED,
+  "extra_data" text NOT NULL CHECK ((JSON_VALID("extra_data") OR "extra_data" IS NULL))
+);
+CREATE INDEX IF NOT EXISTS "socialaccount_socialaccount_user_id_8146e70c"
+  ON "socialaccount_socialaccount" ("user_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "socialaccount_socialaccount_provider_uid_fc810c6e_uniq"
+  ON "socialaccount_socialaccount" ("provider", "uid");
+
+CREATE TABLE IF NOT EXISTS "socialaccount_socialapp" (
+  "id" integer NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "provider" varchar(30) NOT NULL,
+  "name" varchar(40) NOT NULL,
+  "client_id" varchar(191) NOT NULL,
+  "secret" varchar(191) NOT NULL,
+  "key" varchar(191) NOT NULL,
+  "provider_id" varchar(200) NOT NULL,
+  "settings" text NOT NULL CHECK ((JSON_VALID("settings") OR "settings" IS NULL))
+);
+
+CREATE TABLE IF NOT EXISTS "socialaccount_socialapp_sites" (
+  "id" integer NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "socialapp_id" integer NOT NULL REFERENCES "socialaccount_socialapp" ("id") DEFERRABLE INITIALLY DEFERRED,
+  "site_id" integer NOT NULL REFERENCES "django_site" ("id") DEFERRABLE INITIALLY DEFERRED
+);
+CREATE INDEX IF NOT EXISTS "socialaccount_socialapp_sites_site_id_2579dee5"
+  ON "socialaccount_socialapp_sites" ("site_id");
+CREATE INDEX IF NOT EXISTS "socialaccount_socialapp_sites_socialapp_id_97fb6e7d"
+  ON "socialaccount_socialapp_sites" ("socialapp_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "socialaccount_socialapp_sites_socialapp_id_site_id_71a9a768_uniq"
+  ON "socialaccount_socialapp_sites" ("socialapp_id", "site_id");
+
+CREATE TABLE IF NOT EXISTS "socialaccount_socialtoken" (
+  "id" integer NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "token" text NOT NULL,
+  "token_secret" text NOT NULL,
+  "expires_at" datetime NULL,
+  "account_id" integer NOT NULL REFERENCES "socialaccount_socialaccount" ("id") DEFERRABLE INITIALLY DEFERRED,
+  "app_id" integer NULL REFERENCES "socialaccount_socialapp" ("id") DEFERRABLE INITIALLY DEFERRED
+);
+CREATE INDEX IF NOT EXISTS "socialaccount_socialtoken_account_id_951f210e"
+  ON "socialaccount_socialtoken" ("account_id");
+CREATE INDEX IF NOT EXISTS "socialaccount_socialtoken_app_id_636a42d7"
+  ON "socialaccount_socialtoken" ("app_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "socialaccount_socialtoken_app_id_account_id_fca4e0ac_uniq"
+  ON "socialaccount_socialtoken" ("app_id", "account_id");
+
+-- ============================================================
+-- Application tables (apps.core / apps.users / apps.info)
+-- ============================================================
+
+-- techfix_category (apps.core.Category)
 CREATE TABLE IF NOT EXISTS "techfix_category" (
   "id" integer NOT NULL PRIMARY KEY AUTOINCREMENT,
   "name" varchar(100) NOT NULL UNIQUE,
@@ -146,35 +244,40 @@ CREATE TABLE IF NOT EXISTS "techfix_category" (
   "created_at" datetime NOT NULL
 );
 
--- techfix_product
+-- techfix_product (apps.core.Product)
 CREATE TABLE IF NOT EXISTS "techfix_product" (
   "id" integer NOT NULL PRIMARY KEY AUTOINCREMENT,
   "name" varchar(255) NOT NULL,
   "brand" varchar(100) NOT NULL,
   "description" text NOT NULL,
   "specifications" text NOT NULL,
-  "price" decimal NOT NULL,
-  "stock_quantity" integer unsigned NOT NULL CHECK ("stock_quantity" >= 0),
+  "price" decimal NULL,
+  "stock_quantity" integer unsigned NULL CHECK ("stock_quantity" >= 0),
   "image" varchar(100) NULL,
   "created_at" datetime NOT NULL,
   "updated_at" datetime NOT NULL,
-  "category_id" bigint NULL REFERENCES "techfix_category" ("id") DEFERRABLE INITIALLY DEFERRED
+  "category_id" bigint NULL REFERENCES "techfix_category" ("id") DEFERRABLE INITIALLY DEFERRED,
+  "source_url" varchar(200) NOT NULL,
+  "online_rating" decimal NULL,
+  "online_rating_count" integer unsigned NULL CHECK ("online_rating_count" >= 0),
+  "online_rating_source" varchar(100) NOT NULL
 );
 CREATE INDEX IF NOT EXISTS "techfix_product_category_id_d7b87187"
   ON "techfix_product" ("category_id");
 
--- techfix_accessory
+-- techfix_accessory (apps.core.Accessory)
 CREATE TABLE IF NOT EXISTS "techfix_accessory" (
   "id" integer NOT NULL PRIMARY KEY AUTOINCREMENT,
   "name" varchar(255) NOT NULL,
   "brand" varchar(100) NOT NULL,
   "description" text NOT NULL,
-  "price" decimal NOT NULL,
+  "price" decimal NULL,
   "compatibility_notes" text NOT NULL,
-  "stock_quantity" integer unsigned NOT NULL CHECK ("stock_quantity" >= 0),
   "image" varchar(100) NULL,
   "created_at" datetime NOT NULL,
-  "category_id" bigint NULL REFERENCES "techfix_category" ("id") DEFERRABLE INITIALLY DEFERRED
+  "category_id" bigint NULL REFERENCES "techfix_category" ("id") DEFERRABLE INITIALLY DEFERRED,
+  "source_url" varchar(200) NOT NULL,
+  "stock_quantity" integer unsigned NULL CHECK ("stock_quantity" >= 0)
 );
 CREATE INDEX IF NOT EXISTS "techfix_accessory_category_id_fe43e20e"
   ON "techfix_accessory" ("category_id");
@@ -192,7 +295,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS "techfix_accessory_compatible_products_accesso
 CREATE INDEX IF NOT EXISTS "techfix_accessory_compatible_products_product_id_10161dcf"
   ON "techfix_accessory_compatible_products" ("product_id");
 
--- techfix_solution
+-- techfix_solution (apps.core.Solution)
 CREATE TABLE IF NOT EXISTS "techfix_solution" (
   "id" integer NOT NULL PRIMARY KEY AUTOINCREMENT,
   "title" varchar(255) NOT NULL,
@@ -209,6 +312,54 @@ CREATE INDEX IF NOT EXISTS "techfix_solution_category_id_9a5aaa3e"
   ON "techfix_solution" ("category_id");
 CREATE INDEX IF NOT EXISTS "techfix_solution_related_product_id_d34e2db7"
   ON "techfix_solution" ("related_product_id");
+
+-- techfix_review (apps.core.Review)
+CREATE TABLE IF NOT EXISTS "techfix_review" (
+  "id" integer NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "rating" smallint unsigned NOT NULL CHECK ("rating" >= 0),
+  "title" varchar(120) NOT NULL,
+  "comment" text NOT NULL,
+  "created_at" datetime NOT NULL,
+  "updated_at" datetime NOT NULL,
+  "accessory_id" bigint NULL REFERENCES "techfix_accessory" ("id") DEFERRABLE INITIALLY DEFERRED,
+  "product_id" bigint NULL REFERENCES "techfix_product" ("id") DEFERRABLE INITIALLY DEFERRED,
+  "user_id" integer NOT NULL REFERENCES "auth_user" ("id") DEFERRABLE INITIALLY DEFERRED,
+  "is_sample" bool NOT NULL,
+  CONSTRAINT "techfix_review_exactly_one_item" CHECK (
+    (("accessory_id" IS NULL AND "product_id" IS NOT NULL)
+     OR ("accessory_id" IS NOT NULL AND "product_id" IS NULL))
+  )
+);
+CREATE INDEX IF NOT EXISTS "techfix_review_accessory_id_d92ba363"
+  ON "techfix_review" ("accessory_id");
+CREATE INDEX IF NOT EXISTS "techfix_review_product_id_5fda52b0"
+  ON "techfix_review" ("product_id");
+CREATE INDEX IF NOT EXISTS "techfix_review_user_id_bd5a99c7"
+  ON "techfix_review" ("user_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "techfix_review_unique_user_accessory"
+  ON "techfix_review" ("user_id", "accessory_id") WHERE "accessory_id" IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS "techfix_review_unique_user_product"
+  ON "techfix_review" ("user_id", "product_id") WHERE "product_id" IS NOT NULL;
+
+-- techfix_recent_activity (apps.core.RecentActivity)
+CREATE TABLE IF NOT EXISTS "techfix_recent_activity" (
+  "id" integer NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "kind" varchar(40) NOT NULL,
+  "title" varchar(120) NOT NULL,
+  "url" varchar(2048) NOT NULL,
+  "created_at" datetime NOT NULL,
+  "user_id" integer NOT NULL REFERENCES "auth_user" ("id") DEFERRABLE INITIALLY DEFERRED,
+  "chat_history" text NOT NULL CHECK ((JSON_VALID("chat_history") OR "chat_history" IS NULL))
+);
+CREATE INDEX IF NOT EXISTS "techfix_recent_activity_user_id_2165119d"
+  ON "techfix_recent_activity" ("user_id");
+
+-- users_phoneprofile (apps.users.PhoneProfile)
+CREATE TABLE IF NOT EXISTS "users_phoneprofile" (
+  "id" integer NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "phone_number" varchar(16) NULL UNIQUE,
+  "user_id" integer NOT NULL UNIQUE REFERENCES "auth_user" ("id") DEFERRABLE INITIALLY DEFERRED
+);
 
 -- tblinfo (apps.info.Info)
 CREATE TABLE IF NOT EXISTS "tblinfo" (
