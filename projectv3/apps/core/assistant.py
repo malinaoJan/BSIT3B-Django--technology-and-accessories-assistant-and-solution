@@ -6,7 +6,11 @@ enrich the result through ``apps.core.gemini``; the local answer remains the
 fallback when the API is unavailable.
 """
 
+import json
 import re
+import urllib.parse
+import urllib.request
+from functools import lru_cache
 
 TOKEN_RE = re.compile(r"[a-z0-9][a-z0-9\-]*")
 STEP_RE = re.compile(r"(?:^|[\s\n])(?:step\s*)?(\d{1,2})[.)]\s+", re.IGNORECASE)
@@ -862,15 +866,292 @@ def _suggestions(solution_ranked, brand=None, device_tokens=None,
     return suggestions[:3]
 
 
+_VIDEO_ID_RE = re.compile(
+    r'(?:v=|youtu\.be/|/embed/|/shorts/|/live/)([0-9A-Za-z_-]{6,20})'
+)
+_VIDEO_TITLE_TIMEOUT = 3
+
+_VIDEO_TITLE_ISSUES = {
+    'charging': frozenset({
+        'charg', 'charger', 'battery', 'batteri', 'drain', 'connector',
+        'port', 'plug', 'spark', 'loos', 'di',
+    }),
+    'audio': frozenset({
+        'sound', 'audio', 'volume', 'volum', 'distort', 'distortion',
+        'static', 'silent', 'ear', 'mute', 'mut', 'noise',
+    }),
+    'pairing': frozenset({
+        'pair', 'bluetooth', 'sync', 'connect', 'connection',
+    }),
+    'display': frozenset({
+        'screen', 'display', 'flicker', 'black', 'pictur', 'touchscreen',
+        'touch', 'unresponsiv',
+    }),
+    'keyboard': frozenset({
+        'keyboard', 'key', 'button', 'trackpad', 'touchpad', 'click',
+        'unresponsiv',
+    }),
+    'network': frozenset({
+        'wifi', 'network', 'internet', 'signal', 'ping', 'offlin', 'drop',
+        'disconnect',
+    }),
+    'overheat': frozenset({
+        'overheat', 'heat', 'hot', 'warm', 'temperatur', 'fan',
+    }),
+    'performance': frozenset({
+        'slow', 'slowli', 'lag', 'freez', 'crash', 'hang', 'stutter',
+    }),
+    'boot': frozenset({
+        'boot', 'restart', 'logo', 'turn', 'stuck',
+    }),
+    'storage': frozenset({
+        'storage', 'memory', 'disk', 'spac', 'card', 'sd',
+    }),
+    'camera': frozenset({
+        'camera', 'lens', 'blur', 'blurry', 'focu',
+    }),
+    'printer': frozenset({
+        'printer', 'print', 'offlin', 'paper', 'jam', 'ink', 'toner',
+    }),
+    'fingerprint': frozenset({
+        'fingerprint', 'face', 'unlock',
+    }),
+}
+
+_SOLUTION_ISSUES = {
+    'charging': frozenset({
+        'charg', 'charger', 'battery', 'batteri', 'drain', 'di', 'power',
+        'led', 'port', 'connector', 'plug', 'spark', 'loos',
+    }),
+    'audio': frozenset({
+        'sound', 'audio', 'volume', 'volum', 'distort', 'distortion',
+        'static', 'silent', 'ear', 'mute', 'mut', 'noise',
+    }),
+    'pairing': frozenset({
+        'pair', 'bluetooth', 'sync', 'connect', 'connection',
+    }),
+    'display': frozenset({
+        'screen', 'display', 'flicker', 'black', 'blank', 'pictur',
+        'touchscreen', 'touch', 'tap', 'dead', 'respond', 'unresponsiv',
+    }),
+    'keyboard': frozenset({
+        'keyboard', 'key', 'button', 'trackpad', 'touchpad', 'click',
+        'mous', 'respond', 'unresponsiv',
+    }),
+    'network': frozenset({
+        'wifi', 'network', 'internet', 'signal', 'ping', 'offlin', 'slow',
+        'slowli', 'disconnect',
+    }),
+    'overheat': frozenset({
+        'overheat', 'heat', 'hot', 'warm', 'temperatur', 'fan',
+    }),
+    'performance': frozenset({
+        'slow', 'slowli', 'lag', 'freez', 'crash', 'hang', 'stutter',
+    }),
+    'boot': frozenset({
+        'boot', 'restart', 'logo', 'turn', 'stuck', 'dead', 'power',
+    }),
+    'storage': frozenset({
+        'storage', 'memory', 'disk', 'spac', 'card', 'sd', 'full',
+        'recognis', 'recogniz',
+    }),
+    'camera': frozenset({
+        'camera', 'lens', 'blur', 'blurry', 'focu',
+    }),
+    'printer': frozenset({
+        'printer', 'print', 'offlin', 'paper', 'jam', 'ink', 'toner',
+    }),
+    'fingerprint': frozenset({
+        'fingerprint', 'face', 'unlock',
+    }),
+}
+
+_QUERY_ISSUES = {
+    'charging': frozenset({
+        'charg', 'charger', 'battery', 'batteri', 'drain', 'di', 'port',
+        'connector', 'plug', 'spark', 'loos',
+    }),
+    'audio': frozenset({
+        'sound', 'audio', 'volume', 'volum', 'distort', 'distortion',
+        'static', 'silent', 'ear', 'mute', 'mut', 'noise',
+    }),
+    'pairing': frozenset({
+        'pair', 'bluetooth', 'sync', 'connect', 'connection',
+    }),
+    'display': frozenset({
+        'screen', 'display', 'flicker', 'black', 'blank', 'pictur',
+        'touchscreen', 'touch', 'tap', 'unresponsiv',
+    }),
+    'keyboard': frozenset({
+        'keyboard', 'key', 'button', 'trackpad', 'touchpad', 'click',
+        'mous', 'respond', 'unresponsiv',
+    }),
+    'network': frozenset({
+        'wifi', 'network', 'internet', 'signal', 'ping', 'offlin', 'drop',
+        'disconnect',
+    }),
+    'overheat': frozenset({
+        'overheat', 'heat', 'hot', 'warm', 'temperatur', 'fan',
+    }),
+    'performance': frozenset({
+        'slow', 'slowli', 'lag', 'freez', 'crash', 'hang', 'stutter',
+    }),
+    'boot': frozenset({
+        'boot', 'restart', 'logo', 'turn', 'stuck', 'power',
+    }),
+    'storage': frozenset({
+        'storage', 'memory', 'disk', 'spac', 'card', 'sd', 'full',
+        'recognis', 'recogniz',
+    }),
+    'camera': frozenset({
+        'camera', 'lens', 'blur', 'blurry', 'focu',
+    }),
+    'printer': frozenset({
+        'printer', 'print', 'offlin', 'paper', 'jam', 'ink', 'toner',
+    }),
+    'fingerprint': frozenset({
+        'fingerprint', 'face', 'unlock',
+    }),
+}
+
+_VIDEO_ACTION_RE = re.compile(
+    r"\b(?:fix\w*|repair\w*|solv\w*|solution\w*|troubleshoot\w*|"
+    r"problem\w*|issue\w*|error\w*|fail\w*|drain\w*|stuck|loose|"
+    r"overheat\w*|blur\w*|offline|spark\w*|drop\w*|distort\w*|"
+    r"reset\w*|restor\w*|replac\w*|clean\w*|unlock\w*|slow\w*|lag\w*|"
+    r"flicker\w*|black|blank|improv\w*|extend\w*|won't|wont|cannot|"
+    r"can't|stopped|disconnect\w*|not\s+(?:charging|charge|holding|"
+    r"powering|turning|booting|pairing|connecting|working|responding)|"
+    r"will\s+not|no\s+(?:sound|picture|internet|signal)|high\s+ping|"
+    r"double\s+click|weak\s+signal)\b",
+    re.IGNORECASE,
+)
+
+_VIDEO_PAIRING_ACTION_RE = re.compile(
+    r"\bpair\w*|\b(?:can't|cannot|won't|wont|not|fail\w*|problem\w*|"
+    r"issue\w*|error\w*|troubleshoot\w*)\b[^.?!]{0,40}\bconnect\w*",
+    re.IGNORECASE,
+)
+
+_VIDEO_REQUEST_RE = re.compile(
+    r"\btutorials?\b|"
+    r"\bvideos?\s+(?:tutorials?|guides?|walkthroughs?|instructions?|steps?)\b|"
+    r"\bvideos?\s+(?:for|on|about|of|showing|that\s+shows?)\b|"
+    r"\b(?:show|give|send|find|get|need|want|watch|see)\s+"
+    r"(?:me\s+|us\s+)?(?:a\s+|an\s+|the\s+)?(?:youtube\s+)?videos?\b|"
+    r"\byoutube\s+(?:link|guide)\b|"
+    r"\blink\s+(?:to|for)\s+(?:a\s+)?youtube\b|"
+    r"\b(?:show|give|send|find|get)\s+(?:me\s+)?(?:a\s+)?youtube\b",
+    re.IGNORECASE,
+)
+
+_VIDEO_QUERY_FILLERS_RE = re.compile(
+    r"\b(?:can|could|would|will|please|give|show|send|find|get|me|my|a|an|"
+    r"the|for|about|on|of|to|i|need|want|see|watch|any|do|you|have|is|are|"
+    r"there|link)\b",
+    re.IGNORECASE,
+)
+
+
+def _is_video_request(query):
+    return bool(_VIDEO_REQUEST_RE.search(_normalize(query)))
+
+
+def _video_search_url(query):
+    text = _VIDEO_REQUEST_RE.sub(' ', _normalize(query))
+    text = re.sub(
+        r'\b(?:videos?|youtube)\b', ' ', text, flags=re.IGNORECASE
+    )
+    text = _VIDEO_QUERY_FILLERS_RE.sub(' ', text)
+    text = re.sub(r'\s+', ' ', text).strip(' .?!,;:-')
+    if not text:
+        return ''
+    if not re.search(r'\b(?:fix|repair|solution|tutorial)\b', text):
+        text += ' fix tutorial'
+    return 'https://www.youtube.com/results?search_query=%s' % (
+        urllib.parse.quote_plus(text)
+    )
+
+
+@lru_cache(maxsize=512)
+def _video_title(url):
+    match = _VIDEO_ID_RE.search(str(url or ''))
+    if not match:
+        return ''
+    watch_url = 'https://www.youtube.com/watch?v=%s' % match.group(1)
+    endpoint = 'https://www.youtube.com/oembed?format=json&url=%s' % (
+        urllib.parse.quote(watch_url, safe='')
+    )
+    request = urllib.request.Request(
+        endpoint, headers={'User-Agent': 'Mozilla/5.0'}
+    )
+    try:
+        with urllib.request.urlopen(
+            request, timeout=_VIDEO_TITLE_TIMEOUT
+        ) as response:
+            payload = json.loads(response.read().decode('utf-8'))
+    except Exception:
+        return ''
+    return str(payload.get('title') or '').strip()
+
+
+def _video_issue_categories(text, table):
+    tokens = _tokens(text)
+    return {name for name, words in table.items() if tokens & words}
+
+
+def _solution_issue_text(solution):
+    title = solution.title or ''
+    if title.lower().startswith('fix ') and ': ' in title:
+        title = title.split(': ', 1)[1]
+    return '%s %s' % (title, solution.problem_description or '')
+
+
+def _video_matches_question(video_url, query, solution=None):
+    title = _video_title(video_url)
+    if not title:
+        return False
+    title_issues = _video_issue_categories(title, _VIDEO_TITLE_ISSUES)
+    if not title_issues:
+        return False
+    query_issues = _video_issue_categories(query or '', _QUERY_ISSUES)
+    if query_issues:
+        required = query_issues
+    elif solution is not None:
+        required = _video_issue_categories(
+            _solution_issue_text(solution), _SOLUTION_ISSUES
+        )
+    else:
+        required = set()
+    shared = required & title_issues
+    if not shared:
+        return False
+    action_ok = bool(_VIDEO_ACTION_RE.search(title))
+    if not action_ok and 'pairing' in shared:
+        action_ok = bool(_VIDEO_PAIRING_ACTION_RE.search(title))
+    if not action_ok:
+        return False
+    if solution is not None:
+        product = solution.related_product
+        if product is not None:
+            identity = _tokens('%s %s' % (
+                product.brand or '', product.name or ''
+            ))
+            if identity and not (identity & _tokens(title)):
+                return False
+    return True
+
+
 def _tutorial_video(solution_ranked, brand_hits=(), device_tokens=(),
                     identity_terms=None, brand_words=None, issue_terms=None,
-                    min_score=3):
+                    query='', min_score=3):
     """Return the video of the best matching repair guide, if it has one."""
     brand_names = {
         brand.casefold() for brand in (brand_hits or ()) if brand
     }
     issue_terms = issue_terms or set()
     best_video = ''
+    best_solution = None
     best_overlap = -1
     for score, matched, solution in solution_ranked:
         if score < min_score or not solution.video_url:
@@ -892,13 +1173,67 @@ def _tutorial_video(solution_ranked, brand_hits=(), device_tokens=(),
             continue
         if overlap > best_overlap:
             best_video = solution.video_url
+            best_solution = solution
             best_overlap = overlap
             if not issue_terms:
                 break
+    if best_video and not _video_matches_question(
+        best_video, query, best_solution
+    ):
+        return ''
     return best_video
 
 
-def _solution_answer(solution):
+def _video_identity_match(item_tokens, identity_terms):
+    if not identity_terms:
+        return False
+    item_stems = {_stem(token) for token in item_tokens}
+    return {_stem(token) for token in identity_terms} <= item_stems
+
+
+def _best_video_solution(solution_ranked, brand_hits=(), device_tokens=(),
+                         identity_terms=None, brand_words=None,
+                         issue_terms=None, min_score=5,
+                         require_identity=True, family_terms=None):
+    """Return the best ranked guide with a video for an explicit video request."""
+    brand_names = {
+        brand.casefold() for brand in (brand_hits or ()) if brand
+    }
+    issue_terms = issue_terms or set()
+    family_terms = family_terms or set()
+    for score, matched, solution in solution_ranked:
+        if score < min_score or not solution.video_url:
+            continue
+        product = solution.related_product
+        if brand_names and (
+            not product or (product.brand or '').casefold() not in brand_names
+        ):
+            continue
+        if device_tokens and not _device_match(product, device_tokens):
+            continue
+        solution_identity = _solution_identity_tokens(
+            solution, brand_words or set()
+        )
+        if require_identity and identity_terms and not _video_identity_match(
+            solution_identity, identity_terms,
+        ):
+            continue
+        if not require_identity and family_terms and not (
+            {_stem(token) for token in solution_identity}
+            & {_stem(token) for token in family_terms}
+        ):
+            continue
+        if issue_terms:
+            solution_issues = (
+                _tokens(solution.title) | _tokens(solution.problem_description)
+            )
+            if not (matched & issue_terms and issue_terms & solution_issues):
+                continue
+        return score, matched, solution
+    return None
+
+
+def _solution_answer(solution, query='', include_video=True):
     steps = _split_steps(solution.steps)
     desc = (solution.problem_description or '').strip()
     if desc:
@@ -917,7 +1252,13 @@ def _solution_answer(solution):
         'category': solution.category.name if solution.category else '',
         'product': solution.related_product,
         'accessory': None,
-        'video_url': solution.video_url,
+        'video_url': (
+            solution.video_url
+            if include_video and _video_matches_question(
+                solution.video_url, query, solution
+            )
+            else ''
+        ),
         'safety': '',
         'suggestions': [],
         'ai': False,
@@ -1236,6 +1577,58 @@ def _clarify_answer(solution_ranked, device_tokens, identity_terms=None,
     }
 
 
+def _video_help_answer():
+    return {
+        'kind': 'clarify',
+        'badge': 'Video tutorial',
+        'title': 'Find a repair video',
+        'summary': (
+            'Tell me the device and the problem you want to fix, and I will '
+            'find a video tutorial for it. For example: "video tutorial for '
+            'iPhone 12 screen flickering" or "video for laptop overheating".'
+        ),
+        'first_step': '',
+        'steps': [],
+        'steps_title': '',
+        'difficulty': '',
+        'category': '',
+        'product': None,
+        'accessory': None,
+        'video_url': '',
+        'safety': '',
+        'suggestions': [],
+        'ai': False,
+    }
+
+
+def _video_search_answer(query, solution_ranked, brand_hits, device_tokens,
+                         identity_terms=None, brand_words=None):
+    brand = brand_hits[0] if brand_hits else None
+    return {
+        'kind': 'fallback',
+        'badge': 'Video tutorial',
+        'title': 'Video tutorial for your problem',
+        'summary': (
+            'I do not have a saved repair-guide video for that exact problem '
+            'yet. Open the link below to see YouTube video tutorials for "%s".'
+        ) % query,
+        'first_step': '',
+        'steps': [],
+        'steps_title': '',
+        'difficulty': '',
+        'category': '',
+        'product': None,
+        'accessory': None,
+        'video_url': _video_search_url(query),
+        'safety': '',
+        'suggestions': _suggestions(
+            solution_ranked, brand=brand, device_tokens=device_tokens,
+            identity_terms=identity_terms, brand_words=brand_words,
+        ),
+        'ai': False,
+    }
+
+
 def _sources(solution_ranked, product_ranked, accessory_ranked, limit=5,
              identity_terms=None, brand_words=None, exact_identity=False):
     def identity_ok(tokens):
@@ -1358,15 +1751,24 @@ def build_answer(query):
         if token in brand_tokens and brand_tokens[token] not in brand_hits:
             brand_hits.append(brand_tokens[token])
 
+    video_request = _is_video_request(query)
+    problem_asked = bool(
+        issue_signal
+        or _looks_like_repair_request(query)
+        or _VIDEO_ACTION_RE.search(_normalize(query))
+    )
+
     family_tokens = _family_tokens(products, accessories, brand_tokens)
     if _is_general_tech_question(
         query, query_tokens, query_identity, identity_tokens, brand_tokens,
         family_tokens, products, accessories, brand_words,
-    ):
+    ) and not (video_request and problem_asked):
         return _general_tech_answer()
 
-    if issue_signal and not _has_tech_context(
-        query, query_tokens, brand_tokens
+    if (
+        issue_signal
+        and not _has_tech_context(query, query_tokens, brand_tokens)
+        and not (video_request and problem_asked)
     ):
         return _general_tech_answer()
 
@@ -1415,6 +1817,87 @@ def build_answer(query):
             _solution_identity_tokens(item[2], brand_words), query_identity
         )
     ]
+
+    if video_request:
+        video_identity = {
+            token for token in query_tokens
+            if token in identity_tokens
+            or any(char.isdigit() for char in token)
+        }
+
+        def has_problem_match(solution, matched):
+            extra = matched - _solution_identity_tokens(solution, brand_words)
+            extra -= set(brand_tokens)
+            extra -= _GENERIC_TOKENS
+            identity_stems = {_stem(token) for token in video_identity}
+            extra = {
+                token for token in extra if _stem(token) not in identity_stems
+            }
+            return bool(problem_asked or extra)
+
+        issue_terms = query_tokens & _ISSUE_SIGNAL_TOKENS
+        best_video = _best_video_solution(
+            solution_ranked,
+            brand_hits=brand_hits,
+            device_tokens=device_tokens,
+            identity_terms=video_identity,
+            brand_words=brand_words,
+            issue_terms=issue_terms,
+        )
+        if best_video and has_problem_match(best_video[2], best_video[1]):
+            answer = _solution_answer(
+                best_video[2], query, include_video=False
+            )
+            answer['video_url'] = best_video[2].video_url
+            answer['badge'] = 'Video tutorial'
+            return answer
+
+        relaxed_video = _best_video_solution(
+            solution_ranked,
+            brand_hits=brand_hits,
+            device_tokens=device_tokens,
+            identity_terms=video_identity,
+            brand_words=brand_words,
+            issue_terms=issue_terms,
+            require_identity=False,
+            family_terms=video_identity,
+        )
+        if relaxed_video and has_problem_match(
+            relaxed_video[2], relaxed_video[1]
+        ):
+            answer = _solution_answer(
+                relaxed_video[2], query, include_video=False
+            )
+            answer['video_url'] = relaxed_video[2].video_url
+            answer['badge'] = 'Video tutorial'
+            if video_identity and has_identity and not _video_identity_match(
+                _solution_identity_tokens(relaxed_video[2], brand_words),
+                video_identity,
+            ):
+                answer['summary'] = (
+                    'I do not have a guide for that exact model, but this '
+                    'closely related tutorial covers the same problem.\n\n%s'
+                ) % answer['summary']
+            return answer
+
+        if not problem_asked:
+            return _video_help_answer()
+
+        if (
+            _has_tech_context(query, query_tokens, brand_tokens)
+            or brand_hits
+            or device_tokens
+            or query_identity
+        ):
+            return _video_search_answer(
+                query,
+                solution_ranked,
+                brand_hits,
+                device_tokens,
+                identity_terms=query_identity,
+                brand_words=brand_words,
+            )
+        return _general_tech_answer()
 
     accessory_type_tokens = _accessory_type_tokens(query)
 
@@ -1650,7 +2133,7 @@ def build_answer(query):
     if intent == 'lookup' and product_ready:
         answer = _product_answer(best_product[2], query, answer_intent, topic)
     elif solution_ready and (intent == 'troubleshoot' or issue_signal):
-        answer = _solution_answer(best_solution[2])
+        answer = _solution_answer(best_solution[2], query)
     elif product_ready:
         answer = _product_answer(best_product[2], query, answer_intent, topic)
     elif accessory_ready:
@@ -1685,6 +2168,7 @@ def build_answer(query):
             identity_terms=query_identity if has_identity else None,
             brand_words=brand_words,
             issue_terms=query_tokens & _ISSUE_SIGNAL_TOKENS,
+            query=query,
         )
 
     if answer.get('kind') != 'results':

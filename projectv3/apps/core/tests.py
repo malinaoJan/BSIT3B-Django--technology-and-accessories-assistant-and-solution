@@ -1643,7 +1643,11 @@ class StrictAssistantResultsTests(TestCase):
         self.assertIn('iPhone', answer['title'])
         self.assertEqual(answer['suggestions'], [])
 
-    def test_repair_guide_answer_renders_video_tutorial(self):
+    @patch(
+        'apps.core.assistant._video_title',
+        return_value='How to Fix iPhone Battery Drain Fast',
+    )
+    def test_repair_guide_answer_renders_video_tutorial(self, _mocked_title):
         video_url = 'https://www.youtube.com/watch?v=rtezh9blX78'
         self.solution.video_url = video_url
         self.solution.save(update_fields=['video_url'])
@@ -1667,7 +1671,13 @@ class StrictAssistantResultsTests(TestCase):
             'https://www.youtube-nocookie.com/embed/rtezh9blX78', html
         )
 
-    def test_generic_repair_answer_uses_matching_solution_video(self):
+    @patch(
+        'apps.core.assistant._video_title',
+        return_value='How to Fix iPhone Battery Draining Overnight',
+    )
+    def test_generic_repair_answer_uses_matching_solution_video(
+        self, _mocked_title
+    ):
         video_url = 'https://www.youtube.com/watch?v=rtezh9blX78'
         self.solution.video_url = video_url
         self.solution.save(update_fields=['video_url'])
@@ -1676,6 +1686,94 @@ class StrictAssistantResultsTests(TestCase):
 
         self.assertEqual(answer['kind'], 'fallback')
         self.assertEqual(answer['video_url'], video_url)
+
+    @patch(
+        'apps.core.assistant._video_title',
+        return_value='How to Fully Customize HyperOS Step by Step',
+    )
+    def test_unrelated_solution_video_is_hidden(self, _mocked_title):
+        video_url = 'https://www.youtube.com/watch?v=rtezh9blX78'
+        self.solution.video_url = video_url
+        self.solution.save(update_fields=['video_url'])
+
+        answer = build_answer('iphone battery drains')
+
+        self.assertEqual(answer['video_url'], '')
+
+        with patch(
+            'apps.core.views.enhance_answer',
+            side_effect=lambda message, answer, **kwargs: answer,
+        ):
+            response = self.client.post(
+                reverse('assistant_chat'),
+                data=json.dumps({'message': 'iphone battery drains'}),
+                content_type='application/json',
+            )
+
+        self.assertNotIn('assistant-video', response.json()['html'])
+
+    @patch('apps.core.assistant._video_title', return_value='')
+    def test_explicit_video_request_returns_solution_video(self, _mocked_title):
+        video_url = 'https://www.youtube.com/watch?v=rtezh9blX78'
+        self.solution.video_url = video_url
+        self.solution.save(update_fields=['video_url'])
+
+        answer = build_answer(
+            'can you give me a video tutorial for '
+            'iPhone 17 Pro Max battery drains overnight?'
+        )
+
+        self.assertEqual(answer['kind'], 'solution')
+        self.assertEqual(answer['badge'], 'Video tutorial')
+        self.assertEqual(answer['video_url'], video_url)
+
+        with patch(
+            'apps.core.views.enhance_answer',
+            side_effect=lambda message, answer, **kwargs: answer,
+        ):
+            response = self.client.post(
+                reverse('assistant_chat'),
+                data=json.dumps({
+                    'message': (
+                        'can you give me a video tutorial for '
+                        'iPhone 17 Pro Max battery drains overnight?'
+                    ),
+                }),
+                content_type='application/json',
+            )
+
+        html = response.json()['html']
+        self.assertIn('assistant-video', html)
+        self.assertIn(
+            'https://www.youtube-nocookie.com/embed/rtezh9blX78', html
+        )
+
+    def test_video_request_detection_ignores_hardware_and_app_mentions(self):
+        from apps.core.assistant import _is_video_request
+
+        self.assertFalse(_is_video_request('my video card is not working'))
+        self.assertFalse(_is_video_request('youtube app keeps crashing'))
+        self.assertTrue(_is_video_request('show me a video tutorial'))
+
+    def test_video_request_without_problem_asks_for_details(self):
+        answer = build_answer('give me a video tutorial')
+
+        self.assertEqual(answer['kind'], 'clarify')
+        self.assertEqual(answer['badge'], 'Video tutorial')
+        self.assertEqual(answer['video_url'], '')
+        self.assertIn('Tell me the device and the problem', answer['summary'])
+
+    def test_video_request_for_unknown_model_returns_youtube_search(self):
+        answer = build_answer('video tutorial for Nokia 3310 battery drains')
+
+        self.assertEqual(answer['kind'], 'fallback')
+        self.assertEqual(answer['badge'], 'Video tutorial')
+        self.assertTrue(
+            answer['video_url'].startswith(
+                'https://www.youtube.com/results?search_query='
+            )
+        )
+        self.assertIn('nokia', answer['video_url'].casefold())
 
     def test_iphone_accessory_query_returns_only_iphone_cases(self):
         answer = build_answer('iphone case')

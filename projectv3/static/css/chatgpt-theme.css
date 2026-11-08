@@ -1963,6 +1963,8 @@ body.camera-open {
 
 .assistant-video {
   margin: 14px 0 6px;
+  width: 100%;
+  max-width: 400px;
   border: 1px solid var(--cg-border);
   border-radius: 14px;
   background: var(--cg-surface-2);

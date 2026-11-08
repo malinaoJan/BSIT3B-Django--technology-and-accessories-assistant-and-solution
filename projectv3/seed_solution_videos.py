@@ -1,8 +1,8 @@
-"""Attach a brand tutorial video to every solution that does not have one.
+"""Attach an issue-relevant YouTube video to repair solutions.
 
-Each brand folder in the solutions list gets one real, working YouTube tutorial
-for that brand's products & accessories. The video thumbnail then shows at the
-upper right of the problem description on the solutions page.
+A brand video is linked only when its title matches the solution's problem
+(and device), so the solutions page never shows an unrelated tutorial. Pass
+``--prune`` to clear existing links that no longer match their solution.
 """
 
 import os
@@ -14,6 +14,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "mysite.settings")
 django.setup()
 
+from apps.core.assistant import (  # noqa: E402
+    _solution_issue_text,
+    _video_matches_question,
+)
 from apps.core.models import Solution  # noqa: E402
 
 BRAND_VIDEOS = {
@@ -42,11 +46,33 @@ BRAND_VIDEOS = {
 
 updated = 0
 for brand, url in BRAND_VIDEOS.items():
+    count = 0
     queryset = Solution.objects.filter(
         related_product__brand=brand, video_url=""
-    )
-    count = queryset.update(video_url=url)
+    ).select_related("related_product")
+    for solution in queryset:
+        if not _video_matches_question(
+            url, _solution_issue_text(solution), solution
+        ):
+            continue
+        solution.video_url = url
+        solution.save(update_fields=["video_url"])
+        count += 1
     updated += count
     print(f"{brand}: {count} solution(s) linked to {url}")
 
 print(f"total updated: {updated}")
+
+if "--prune" in sys.argv:
+    pruned = 0
+    for solution in Solution.objects.exclude(video_url="").select_related(
+        "related_product"
+    ):
+        if _video_matches_question(
+            solution.video_url, _solution_issue_text(solution), solution
+        ):
+            continue
+        solution.video_url = ""
+        solution.save(update_fields=["video_url"])
+        pruned += 1
+    print(f"total pruned: {pruned}")

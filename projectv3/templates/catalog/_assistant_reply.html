@@ -157,12 +157,6 @@
     </div>
     {% endif %}
 
-    {% if answer.kind == 'solution' %}
-    <div class="assistant-actions">
-      <a href="{% url 'solution_list' %}" class="btn btn-outline-primary">Browse repair guides</a>
-    </div>
-    {% endif %}
-
     {% if answer.kind == 'product' and answer.product %}
     {% if answer.product.source_url %}<p><a href="{{ answer.product.source_url }}" target="_blank" rel="noopener noreferrer">Official product page <i class="fa-solid fa-arrow-up-right-from-square ms-1" aria-hidden="true"></i></a></p>{% endif %}
     <div class="assistant-specs">
