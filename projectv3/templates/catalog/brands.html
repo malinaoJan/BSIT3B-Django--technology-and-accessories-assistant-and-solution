@@ -1,5 +1,5 @@
 {% extends "theme/base.html" %}
-{% load brand_logos %}
+{% load brand_logos assistant_extras %}
 {% block title %}Library | TechFix{% endblock %}
 {% block body_class %}library-page{% endblock %}
 {% block content %}
@@ -62,6 +62,7 @@
     <button type="button" class="library-tab" data-library-tab="favorites" role="tab" aria-selected="false">Favorites</button>
     <button type="button" class="library-tab" data-library-tab="folders" role="tab" aria-selected="false">Folders</button>
     <button type="button" class="library-tab" data-library-tab="images" role="tab" aria-selected="false">Images</button>
+    <button type="button" class="library-tab" data-library-tab="solutions" role="tab" aria-selected="false">Solutions</button>
   </div>
 
   <div class="library-panels">
@@ -128,6 +129,56 @@
         <p class="library-empty-text">Product and accessory photos will appear here.</p>
       </div>
     </section>
+
+    <section class="library-panel" data-library-panel="solutions" role="tabpanel" aria-label="Solutions" {% if active_tab != 'solutions' %}hidden{% endif %}>
+      <div class="library-grid library-image-grid" data-library-grid data-view="grid">
+        {% for item in solution_items %}
+        <div class="library-image-card" data-library-solution data-name="{{ item.name|lower }}" data-order="{{ forloop.counter0 }}">
+          {% if item.video_thumb %}
+          <a href="{{ item.video_url }}" target="_blank" rel="noopener" class="library-image-thumb position-relative" data-library-video data-video-embed="{{ item.video_url|youtube_embed }}" data-video-title="{{ item.name }}" aria-label="Play {{ item.name }} video tutorial">
+            <img src="{{ item.video_thumb }}" alt="{{ item.name }} video tutorial" loading="lazy">
+            <span class="solution-video-play"><i class="fas fa-play"></i></span>
+          </a>
+          {% else %}
+          <a href="{{ item.url }}" class="library-image-thumb position-relative">
+            <span class="library-image-placeholder {{ item.tint }}"><i class="{{ item.icon }}" aria-hidden="true"></i></span>
+          </a>
+          {% endif %}
+          <a href="{{ item.url }}" class="library-image-meta text-reset text-decoration-none">
+            <span class="library-image-name" title="{{ item.name }}">{{ item.name }}</span>
+            <span class="library-image-sub">{% if item.brand %}{{ item.brand }} &middot; {% endif %}{{ item.category|default:"Repair guide" }}</span>
+            <span class="badge {{ item.difficulty_class }} mt-1 align-self-start">{{ item.difficulty }}</span>
+          </a>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="library-empty" data-library-empty="solutions" {% if solution_items %}hidden{% endif %}>
+        <span class="library-empty-icon"><i class="fa-solid fa-screwdriver-wrench" aria-hidden="true"></i></span>
+        <p class="library-empty-title">{% if query %}No solutions match "{{ query }}"{% else %}No solutions yet{% endif %}</p>
+        <p class="library-empty-text">{% if query %}Try a different search.{% else %}Repair guides appear here when they are added.{% endif %}</p>
+        {% if query %}
+        <a href="{% url 'brand_list' %}" class="library-empty-action">Clear search</a>
+        {% else %}
+        <a href="{% url 'solution_list' %}" class="library-empty-action">Browse solutions</a>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+</div>
+
+<div class="modal fade" id="libraryVideoModal" tabindex="-1" aria-labelledby="libraryVideoModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="libraryVideoModalTitle">Video tutorial</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-0">
+        <div class="ratio ratio-16x9">
+          <iframe src="" title="Video tutorial" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}
@@ -144,10 +195,13 @@
   var viewButtons = Array.prototype.slice.call(root.querySelectorAll('[data-library-view]'));
   var folderPanel = root.querySelector('[data-library-panel="folders"]');
   var imagePanel = root.querySelector('[data-library-panel="images"]');
+  var solutionPanel = root.querySelector('[data-library-panel="solutions"]');
   var folderGrid = folderPanel ? folderPanel.querySelector('[data-library-grid]') : null;
   var imageGrid = imagePanel ? imagePanel.querySelector('[data-library-grid]') : null;
+  var solutionGrid = solutionPanel ? solutionPanel.querySelector('[data-library-grid]') : null;
   var folderCards = Array.prototype.slice.call(root.querySelectorAll('[data-library-card]'));
   var imageCards = Array.prototype.slice.call(root.querySelectorAll('[data-library-image]'));
+  var solutionCards = Array.prototype.slice.call(root.querySelectorAll('[data-library-solution]'));
   var folderEmpty = root.querySelector('[data-library-empty="folders"]');
   var menuDetails = Array.prototype.slice.call(root.querySelectorAll('details.library-menu'));
 
@@ -275,8 +329,10 @@
 
     var showFolders = state.tab === 'suggested' || state.tab === 'favorites' || state.tab === 'folders';
     var showImages = state.tab === 'images';
+    var showSolutions = state.tab === 'solutions';
     if (folderPanel) folderPanel.hidden = !showFolders;
     if (imagePanel) imagePanel.hidden = !showImages;
+    if (solutionPanel) solutionPanel.hidden = !showSolutions;
 
     var visibleFolders = 0;
     folderCards.forEach(function (card) {
@@ -289,8 +345,10 @@
 
     sortGrid(folderGrid, folderCards);
     sortGrid(imageGrid, imageCards);
+    sortGrid(solutionGrid, solutionCards);
     if (folderGrid) folderGrid.setAttribute('data-view', state.view);
     if (imageGrid) imageGrid.setAttribute('data-view', state.view);
+    if (solutionGrid) solutionGrid.setAttribute('data-view', state.view);
     updateActive(filterButtons, 'data-library-filter', state.filter);
     updateActive(sortButtons, 'data-library-sort', state.sort);
     updateActive(viewButtons, 'data-library-view', state.view);
@@ -306,7 +364,7 @@
   filterButtons.forEach(function (button) {
     button.addEventListener('click', function () {
       state.filter = button.getAttribute('data-library-filter');
-      if (state.tab === 'images') state.tab = 'folders';
+      if (state.tab === 'images' || state.tab === 'solutions') state.tab = 'folders';
       closeMenus();
       render();
     });
@@ -370,6 +428,28 @@
   document.addEventListener('keydown', function (event) {
     if (event.key === 'Escape') closeMenus();
   });
+
+  var videoModalEl = document.getElementById('libraryVideoModal');
+  var videoFrame = videoModalEl ? videoModalEl.querySelector('iframe') : null;
+  var videoTitle = videoModalEl ? videoModalEl.querySelector('.modal-title') : null;
+
+  root.querySelectorAll('[data-library-video]').forEach(function (link) {
+    link.addEventListener('click', function (event) {
+      if (!videoModalEl || !videoFrame || !window.bootstrap) return;
+      var embed = link.getAttribute('data-video-embed');
+      if (!embed) return;
+      event.preventDefault();
+      videoFrame.src = embed + '?autoplay=1&rel=0';
+      if (videoTitle) videoTitle.textContent = link.getAttribute('data-video-title') || 'Video tutorial';
+      window.bootstrap.Modal.getOrCreateInstance(videoModalEl).show();
+    });
+  });
+
+  if (videoModalEl) {
+    videoModalEl.addEventListener('hidden.bs.modal', function () {
+      if (videoFrame) videoFrame.src = '';
+    });
+  }
 
   applyFavoriteState();
   render();

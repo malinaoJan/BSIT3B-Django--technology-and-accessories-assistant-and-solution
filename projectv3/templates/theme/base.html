@@ -3,13 +3,23 @@
 <html lang="en" data-bs-theme="dark">
   <head>
     <meta charset="utf-8"/>
+    <script>
+      (function () {
+        try {
+          var theme = localStorage.getItem('techfix-theme');
+          if (theme === 'light' || theme === 'dark') {
+            document.documentElement.setAttribute('data-bs-theme', theme);
+          }
+        } catch (error) {}
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
     <meta http-equiv="X-UA-Compatible" content="ie=edge"/>
     <meta name="theme-color" content="#7c3aed"/>
     <title>{% block title %}TechFix{% endblock %}</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='46' fill='%230d0d0d'/><path d='M50 24l6.5 19.5L76 50l-19.5 6.5L50 76l-6.5-19.5L24 50l19.5-6.5z' fill='white'/></svg>"/>
     <link href="{% static 'css/tabler.css' %}" rel="stylesheet"/>
-    <link href="{% static 'css/chatgpt-theme.css' %}?v=34" rel="stylesheet"/>
+    <link href="{% static 'css/chatgpt-theme.css' %}?v=37" rel="stylesheet"/>
     <link rel="preconnect" href="https://fonts.googleapis.com"/>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;550;600;700&display=swap" rel="stylesheet"/>
@@ -80,6 +90,33 @@
         var closeBtn = document.getElementById('sidebarClose');
         var recentActivities = document.getElementById('recentActivities');
         var mobileTopbar = document.querySelector('.mobile-topbar');
+        var themeButtons = document.querySelectorAll('[data-theme-set]');
+        var themeColorMeta = document.querySelector('meta[name="theme-color"]');
+
+        function applyTheme(theme, persist) {
+          var next = theme === 'light' ? 'light' : 'dark';
+          document.documentElement.setAttribute('data-bs-theme', next);
+          if (persist) {
+            try { localStorage.setItem('techfix-theme', next); } catch (error) {}
+          }
+          if (themeColorMeta) {
+            themeColorMeta.setAttribute('content', next === 'light' ? '#f7f5fb' : '#7c3aed');
+          }
+          for (var i = 0; i < themeButtons.length; i++) {
+            var button = themeButtons[i];
+            var isActive = button.getAttribute('data-theme-set') === next;
+            button.classList.toggle('is-active', isActive);
+            button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+          }
+        }
+
+        for (var i = 0; i < themeButtons.length; i++) {
+          themeButtons[i].addEventListener('click', function () {
+            applyTheme(this.getAttribute('data-theme-set'), true);
+          });
+        }
+
+        applyTheme(document.documentElement.getAttribute('data-bs-theme'), false);
 
         function syncStickyOffset() {
           var offset = mobileTopbar && getComputedStyle(mobileTopbar).display !== 'none'

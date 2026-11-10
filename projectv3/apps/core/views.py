@@ -22,7 +22,7 @@ from django.shortcuts import redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
-from django.utils.http import url_has_allowed_host_and_scheme
+from django.utils.http import url_has_allowed_host_and_scheme, urlencode
 from django.utils.text import get_valid_filename
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_http_methods, require_POST
@@ -1172,6 +1172,44 @@ def _get_library_images(query=''):
     return items
 
 
+def _get_library_solutions(query=''):
+    """Return repair guides for the Library solutions view."""
+    from .models import Solution
+
+    qs = Solution.objects.select_related(
+        'category', 'related_product'
+    ).order_by('-created_at', '-pk')
+    if query:
+        qs = _solution_search(qs, query)
+
+    difficulty_classes = {
+        'Easy': 'techfix-badge-easy',
+        'Medium': 'techfix-badge-medium',
+    }
+    items = []
+    for index, solution in enumerate(qs):
+        product = solution.related_product
+        items.append({
+            'name': solution.title,
+            'brand': product.brand if product else '',
+            'category': solution.category.name if solution.category else '',
+            'difficulty': solution.difficulty_level,
+            'difficulty_class': difficulty_classes.get(
+                solution.difficulty_level, 'techfix-badge-hard'
+            ),
+            'video_url': solution.video_url,
+            'video_thumb': solution.video_thumb,
+            'icon': 'fa-solid fa-screwdriver-wrench',
+            'tint': 'pt-' + str(index % 8),
+            'url': (
+                reverse('product_detail', args=[product.pk])
+                if product
+                else reverse('solution_list') + '?' + urlencode({'q': solution.title})
+            ),
+        })
+    return items
+
+
 def _canonical_brand(brand):
     """Return the stored casing of a brand (case-insensitive match), or None."""
     for name in _get_all_brands():
@@ -1192,14 +1230,19 @@ def brand_list(request):
     if query:
         folders = [f for f in folders if query.lower() in f['name'].lower()]
     image_items = _get_library_images(query)
-    active_tab = (
-        'images' if query and image_items and not folders else 'suggested'
-    )
+    solution_items = _get_library_solutions(query)
+    active_tab = 'suggested'
+    if query and not folders:
+        if image_items:
+            active_tab = 'images'
+        elif solution_items:
+            active_tab = 'solutions'
     return render(request, 'catalog/brands.html', {
         'brands': folders,
         'query': query,
         'total': len(folders),
         'image_items': image_items,
+        'solution_items': solution_items,
         'active_tab': active_tab,
     })
 
