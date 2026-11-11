@@ -99,25 +99,29 @@ WSGI_APPLICATION = 'mysite.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
-# Use SQLite by default so the project runs without a MySQL server.
-# To use MySQL (database `techfix_db`, schema in SQL/techfix_database.sql),
-# install `mysqlclient` and set:
-#   DATABASES = {
-#       'default': {
-#           'ENGINE': 'django.db.backends.mysql',
-#           'NAME': 'techfix_db',
-#           'USER': 'root',
-#           'PASSWORD': '',
-#           'HOST': 'localhost',
-#           'PORT': '3306',
-#       }
-#   }
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+# Uses the XAMPP MySQL server by default. Set DB_ENGINE to
+# 'django.db.backends.sqlite3' (with DB_NAME) to fall back to SQLite.
+DB_ENGINE = os.environ.get('DB_ENGINE', 'django.db.backends.mysql')
+
+if DB_ENGINE == 'django.db.backends.sqlite3':
+    DATABASES = {
+        'default': {
+            'ENGINE': DB_ENGINE,
+            'NAME': os.environ.get('DB_NAME', str(BASE_DIR / 'db.sqlite3')),
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': DB_ENGINE,
+            'NAME': os.environ.get('DB_NAME', 'techfix_db'),
+            'USER': os.environ.get('DB_USER', 'root'),
+            'PASSWORD': os.environ.get('DB_PASSWORD', ''),
+            'HOST': os.environ.get('DB_HOST', '127.0.0.1'),
+            'PORT': os.environ.get('DB_PORT', '3306'),
+            'OPTIONS': {'charset': 'utf8mb4'},
+        }
+    }
 
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators

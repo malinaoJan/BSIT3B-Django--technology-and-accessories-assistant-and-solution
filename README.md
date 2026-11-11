@@ -24,7 +24,7 @@ Assistant responses can use the configured Gemini API when a key is available. T
 ## Technology
 
 - Python and Django
-- SQLite by default
+- MySQL / MariaDB (XAMPP) with an optional SQLite fallback
 - HTML, CSS, JavaScript, and Bootstrap-based interface
 - Optional Google Gemini API integration
 

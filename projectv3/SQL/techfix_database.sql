@@ -1,546 +1,549 @@
--- ============================================================
--- TECHFIX System Database — MySQL / MariaDB
--- Project: projectv3 (Django 6.1.2)
--- Generated: 2026-11-07
--- Engine: InnoDB | Charset: utf8mb4 | Collation: utf8mb4_unicode_ci
+-- MariaDB dump 10.19  Distrib 10.4.32-MariaDB, for Win64 (AMD64)
 --
--- This script mirrors the schema Django creates today for the
--- migrations that are actually installed in this project:
---   contenttypes.0001..0002, auth.0001..0012, admin.0001..0003,
---   sessions.0001, sites.0001..0002,
---   account.0001..0009, socialaccount.0001..0006,
---   core.0001..0008, info.0001, users.0001
---
--- Domain tables (9):
---   1. techfix_category                       (product/accessory/solution grouping)
---   2. techfix_product                        (main tech devices)
---   3. techfix_accessory                      (add-ons: cases, chargers, etc.)
---   4. techfix_accessory_compatible_products  (M:N junction)
---   5. techfix_solution                       (troubleshooting guides / fixes)
---   6. techfix_review                         (customer ratings and feedback)
---   7. techfix_recent_activity                (dashboard activity log)
---   8. users_phoneprofile                     (one-to-one phone number per user)
---   9. tblinfo                                (apps.info.Info + owner)
---
--- Supporting tables (17):
---   django_migrations, django_content_type, django_site, auth_permission,
---   auth_group, auth_user, auth_group_permissions, auth_user_groups,
---   auth_user_user_permissions, django_admin_log, django_session,
---   account_emailaddress, account_emailconfirmation,
---   socialaccount_socialaccount, socialaccount_socialapp,
---   socialaccount_socialapp_sites, socialaccount_socialtoken
---
--- Relationships (ORM on_delete=; Django enforces these in Python):
---   Category 1—N Product      (SET_NULL)
---   Category 1—N Accessory    (SET_NULL)
---   Category 1—N Solution     (SET_NULL)
---   Product  1—N Solution     (SET_NULL)
---   Product  1—N Review       (CASCADE)
---   Accessory 1—N Review      (CASCADE)
---   User     1—N Review       (CASCADE)
---   User     1—1 PhoneProfile (CASCADE, unique)
---   User     1—N RecentActivity (CASCADE)
---   Product  M—N Accessory    (via junction, CASCADE)
---   User     1—N Info         (CASCADE)
---
--- MySQL notes:
---   * JSON columns are native JSON (Django's MySQL JSONField mapping).
---   * MySQL/MariaDB do not support partial (conditional) unique indexes,
---     so Django silently skips these four constraints on MySQL:
---       account_emailaddress.unique_primary_email
---       account_emailaddress.unique_verified_email
---       techfix_review.unique_user_product
---       techfix_review.unique_user_accessory
---     They are still enforced by Django validation and exist on SQLite.
---   * CHECK constraints are enforced on MySQL 8.0.16+ / MariaDB 10.2+.
---
--- IMPORTANT: This is a schema snapshot for a fresh/empty database.
--- For a normal install prefer `python manage.py migrate`.
--- If you imported this script manually, run once:
---   python manage.py migrate --fake
--- so Django records the migrations in django_migrations.
--- ============================================================
+-- Host: localhost    Database: techfix_db
+-- ------------------------------------------------------
+-- Server version	10.4.32-MariaDB
 
-CREATE DATABASE IF NOT EXISTS `techfix_db`
-  CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
+/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+
+--
+-- Current Database: `techfix_db`
+--
+
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `techfix_db` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci */;
+
 USE `techfix_db`;
 
-SET FOREIGN_KEY_CHECKS = 0;
+--
+-- Table structure for table `account_emailaddress`
+--
 
--- ============================================================
--- Django framework tables
--- ============================================================
-
--- ------------------------------------------------------------
--- Table: django_migrations
--- Records which migrations Django has applied.
--- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `django_migrations` (
-  `id` BIGINT NOT NULL AUTO_INCREMENT,
-  `app` VARCHAR(255) NOT NULL,
-  `name` VARCHAR(255) NOT NULL,
-  `applied` DATETIME(6) NOT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ------------------------------------------------------------
--- Table: django_content_type
--- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `django_content_type` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `app_label` VARCHAR(100) NOT NULL,
-  `model` VARCHAR(100) NOT NULL,
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `account_emailaddress` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `email` varchar(254) NOT NULL,
+  `verified` tinyint(1) NOT NULL,
+  `primary` tinyint(1) NOT NULL,
+  `user_id` int(11) NOT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_django_content_type_app_model` (`app_label`, `model`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  UNIQUE KEY `account_emailaddress_user_id_email_987c8728_uniq` (`user_id`,`email`),
+  KEY `account_emailaddress_email_03be32b2` (`email`),
+  CONSTRAINT `account_emailaddress_user_id_2c513194_fk_auth_user_id` FOREIGN KEY (`user_id`) REFERENCES `auth_user` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
--- ------------------------------------------------------------
--- Table: auth_permission
--- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `auth_permission` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `content_type_id` INT NOT NULL,
-  `codename` VARCHAR(100) NOT NULL,
-  `name` VARCHAR(255) NOT NULL,
+--
+-- Table structure for table `account_emailconfirmation`
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `account_emailconfirmation` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `created` datetime(6) NOT NULL,
+  `sent` datetime(6) DEFAULT NULL,
+  `key` varchar(64) NOT NULL,
+  `email_address_id` int(11) NOT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_auth_permission_content_type_codename` (`content_type_id`, `codename`),
-  KEY `idx_auth_permission_content_type` (`content_type_id`),
-  CONSTRAINT `fk_permission_content_type`
-    FOREIGN KEY (`content_type_id`) REFERENCES `django_content_type` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  UNIQUE KEY `key` (`key`),
+  KEY `account_emailconfirm_email_address_id_5b7f8c58_fk_account_e` (`email_address_id`),
+  CONSTRAINT `account_emailconfirm_email_address_id_5b7f8c58_fk_account_e` FOREIGN KEY (`email_address_id`) REFERENCES `account_emailaddress` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
--- ------------------------------------------------------------
--- Table: auth_group
--- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `auth_group` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `name` VARCHAR(150) NOT NULL,
+--
+-- Table structure for table `auth_group`
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `auth_group` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(150) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_auth_group_name` (`name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
--- ------------------------------------------------------------
--- Table: auth_user (Django's default user, used by apps.users)
--- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `auth_user` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `password` VARCHAR(128) NOT NULL,
-  `last_login` DATETIME(6) NULL DEFAULT NULL,
-  `is_superuser` TINYINT(1) NOT NULL,
-  `username` VARCHAR(150) NOT NULL,
-  `first_name` VARCHAR(150) NOT NULL,
-  `last_name` VARCHAR(150) NOT NULL,
-  `email` VARCHAR(254) NOT NULL,
-  `is_staff` TINYINT(1) NOT NULL,
-  `is_active` TINYINT(1) NOT NULL,
-  `date_joined` DATETIME(6) NOT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_auth_user_username` (`username`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+--
+-- Table structure for table `auth_group_permissions`
+--
 
--- ------------------------------------------------------------
--- Table: auth_group_permissions (M:N group <-> permission)
--- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `auth_group_permissions` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `group_id` INT NOT NULL,
-  `permission_id` INT NOT NULL,
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `auth_group_permissions` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `group_id` int(11) NOT NULL,
+  `permission_id` int(11) NOT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_auth_group_permissions_group_permission` (`group_id`, `permission_id`),
+  UNIQUE KEY `uq_auth_group_permissions_group_permission` (`group_id`,`permission_id`),
   KEY `idx_auth_group_permissions_group` (`group_id`),
   KEY `idx_auth_group_permissions_permission` (`permission_id`),
-  CONSTRAINT `fk_group_permissions_group`
-    FOREIGN KEY (`group_id`) REFERENCES `auth_group` (`id`),
-  CONSTRAINT `fk_group_permissions_permission`
-    FOREIGN KEY (`permission_id`) REFERENCES `auth_permission` (`id`)
+  CONSTRAINT `fk_group_permissions_group` FOREIGN KEY (`group_id`) REFERENCES `auth_group` (`id`),
+  CONSTRAINT `fk_group_permissions_permission` FOREIGN KEY (`permission_id`) REFERENCES `auth_permission` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
--- ------------------------------------------------------------
--- Table: auth_user_groups (M:N user <-> group)
--- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `auth_user_groups` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `user_id` INT NOT NULL,
-  `group_id` INT NOT NULL,
+--
+-- Table structure for table `auth_permission`
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `auth_permission` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `content_type_id` int(11) NOT NULL,
+  `codename` varchar(100) NOT NULL,
+  `name` varchar(255) NOT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_auth_user_groups_user_group` (`user_id`, `group_id`),
+  UNIQUE KEY `uq_auth_permission_content_type_codename` (`content_type_id`,`codename`),
+  KEY `idx_auth_permission_content_type` (`content_type_id`),
+  CONSTRAINT `fk_permission_content_type` FOREIGN KEY (`content_type_id`) REFERENCES `django_content_type` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=81 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `auth_user`
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `auth_user` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `password` varchar(128) NOT NULL,
+  `last_login` datetime(6) DEFAULT NULL,
+  `is_superuser` tinyint(1) NOT NULL,
+  `username` varchar(150) NOT NULL,
+  `first_name` varchar(150) NOT NULL,
+  `last_name` varchar(150) NOT NULL,
+  `email` varchar(254) NOT NULL,
+  `is_staff` tinyint(1) NOT NULL,
+  `is_active` tinyint(1) NOT NULL,
+  `date_joined` datetime(6) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_auth_user_username` (`username`)
+) ENGINE=InnoDB AUTO_INCREMENT=33 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `auth_user_groups`
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `auth_user_groups` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) NOT NULL,
+  `group_id` int(11) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_auth_user_groups_user_group` (`user_id`,`group_id`),
   KEY `idx_auth_user_groups_user` (`user_id`),
   KEY `idx_auth_user_groups_group` (`group_id`),
-  CONSTRAINT `fk_user_groups_user`
-    FOREIGN KEY (`user_id`) REFERENCES `auth_user` (`id`),
-  CONSTRAINT `fk_user_groups_group`
-    FOREIGN KEY (`group_id`) REFERENCES `auth_group` (`id`)
+  CONSTRAINT `fk_user_groups_group` FOREIGN KEY (`group_id`) REFERENCES `auth_group` (`id`),
+  CONSTRAINT `fk_user_groups_user` FOREIGN KEY (`user_id`) REFERENCES `auth_user` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
--- ------------------------------------------------------------
--- Table: auth_user_user_permissions (M:N user <-> permission)
--- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `auth_user_user_permissions` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `user_id` INT NOT NULL,
-  `permission_id` INT NOT NULL,
+--
+-- Table structure for table `auth_user_user_permissions`
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `auth_user_user_permissions` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) NOT NULL,
+  `permission_id` int(11) NOT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_auth_user_user_permissions_user_permission` (`user_id`, `permission_id`),
+  UNIQUE KEY `uq_auth_user_user_permissions_user_permission` (`user_id`,`permission_id`),
   KEY `idx_auth_user_user_permissions_user` (`user_id`),
   KEY `idx_auth_user_user_permissions_permission` (`permission_id`),
-  CONSTRAINT `fk_user_user_permissions_user`
-    FOREIGN KEY (`user_id`) REFERENCES `auth_user` (`id`),
-  CONSTRAINT `fk_user_user_permissions_permission`
-    FOREIGN KEY (`permission_id`) REFERENCES `auth_permission` (`id`)
+  CONSTRAINT `fk_user_user_permissions_permission` FOREIGN KEY (`permission_id`) REFERENCES `auth_permission` (`id`),
+  CONSTRAINT `fk_user_user_permissions_user` FOREIGN KEY (`user_id`) REFERENCES `auth_user` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
--- ------------------------------------------------------------
--- Table: django_admin_log
--- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `django_admin_log` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `object_id` LONGTEXT NULL,
-  `object_repr` VARCHAR(200) NOT NULL,
-  `action_flag` SMALLINT UNSIGNED NOT NULL,
-  `change_message` LONGTEXT NOT NULL,
-  `content_type_id` INT NULL DEFAULT NULL,
-  `user_id` INT NOT NULL,
-  `action_time` DATETIME(6) NOT NULL,
+--
+-- Table structure for table `django_admin_log`
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `django_admin_log` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `object_id` longtext DEFAULT NULL,
+  `object_repr` varchar(200) NOT NULL,
+  `action_flag` smallint(5) unsigned NOT NULL,
+  `change_message` longtext NOT NULL,
+  `content_type_id` int(11) DEFAULT NULL,
+  `user_id` int(11) NOT NULL,
+  `action_time` datetime(6) NOT NULL,
   PRIMARY KEY (`id`),
-  CONSTRAINT `chk_admin_log_action_flag` CHECK (`action_flag` >= 0),
   KEY `idx_admin_log_content_type` (`content_type_id`),
   KEY `idx_admin_log_user` (`user_id`),
-  CONSTRAINT `fk_admin_log_content_type`
-    FOREIGN KEY (`content_type_id`) REFERENCES `django_content_type` (`id`),
-  CONSTRAINT `fk_admin_log_user`
-    FOREIGN KEY (`user_id`) REFERENCES `auth_user` (`id`)
+  CONSTRAINT `fk_admin_log_content_type` FOREIGN KEY (`content_type_id`) REFERENCES `django_content_type` (`id`),
+  CONSTRAINT `fk_admin_log_user` FOREIGN KEY (`user_id`) REFERENCES `auth_user` (`id`),
+  CONSTRAINT `chk_admin_log_action_flag` CHECK (`action_flag` >= 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
--- ------------------------------------------------------------
--- Table: django_session
--- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `django_session` (
-  `session_key` VARCHAR(40) NOT NULL,
-  `session_data` LONGTEXT NOT NULL,
-  `expire_date` DATETIME(6) NOT NULL,
+--
+-- Table structure for table `django_content_type`
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `django_content_type` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `app_label` varchar(100) NOT NULL,
+  `model` varchar(100) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_django_content_type_app_model` (`app_label`,`model`)
+) ENGINE=InnoDB AUTO_INCREMENT=21 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `django_migrations`
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `django_migrations` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `app` varchar(255) NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `applied` datetime(6) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=46 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `django_session`
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `django_session` (
+  `session_key` varchar(40) NOT NULL,
+  `session_data` longtext NOT NULL,
+  `expire_date` datetime(6) NOT NULL,
   PRIMARY KEY (`session_key`),
   KEY `idx_session_expire_date` (`expire_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
--- ------------------------------------------------------------
--- Table: django_site (django.contrib.sites; used by allauth, SITE_ID=1)
--- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `django_site` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `name` VARCHAR(50) NOT NULL,
-  `domain` VARCHAR(100) NOT NULL,
+--
+-- Table structure for table `django_site`
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `django_site` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `domain` varchar(100) NOT NULL,
+  `name` varchar(50) NOT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_django_site_domain` (`domain`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  UNIQUE KEY `django_site_domain_a2e37b91_uniq` (`domain`)
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
--- ============================================================
--- django-allauth tables (account + socialaccount)
--- ============================================================
+--
+-- Table structure for table `socialaccount_socialaccount`
+--
 
--- ------------------------------------------------------------
--- Table: account_emailaddress
--- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `account_emailaddress` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `verified` TINYINT(1) NOT NULL,
-  `primary` TINYINT(1) NOT NULL,
-  `user_id` INT NOT NULL,
-  `email` VARCHAR(254) NOT NULL,
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `socialaccount_socialaccount` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `provider` varchar(200) NOT NULL,
+  `uid` varchar(191) NOT NULL,
+  `last_login` datetime(6) NOT NULL,
+  `date_joined` datetime(6) NOT NULL,
+  `extra_data` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (json_valid(`extra_data`)),
+  `user_id` int(11) NOT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_account_emailaddress_user_email` (`user_id`, `email`),
-  KEY `idx_account_emailaddress_email` (`email`),
-  KEY `idx_account_emailaddress_user` (`user_id`),
-  CONSTRAINT `fk_account_emailaddress_user`
-    FOREIGN KEY (`user_id`) REFERENCES `auth_user` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  UNIQUE KEY `socialaccount_socialaccount_provider_uid_fc810c6e_uniq` (`provider`,`uid`),
+  KEY `socialaccount_socialaccount_user_id_8146e70c_fk_auth_user_id` (`user_id`),
+  CONSTRAINT `socialaccount_socialaccount_user_id_8146e70c_fk_auth_user_id` FOREIGN KEY (`user_id`) REFERENCES `auth_user` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
--- ------------------------------------------------------------
--- Table: account_emailconfirmation
--- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `account_emailconfirmation` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `created` DATETIME(6) NOT NULL,
-  `sent` DATETIME(6) NULL DEFAULT NULL,
-  `key` VARCHAR(64) NOT NULL,
-  `email_address_id` INT NOT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_account_emailconfirmation_key` (`key`),
-  KEY `idx_account_emailconfirmation_email_address` (`email_address_id`),
-  CONSTRAINT `fk_account_emailconfirmation_email_address`
-    FOREIGN KEY (`email_address_id`) REFERENCES `account_emailaddress` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+--
+-- Table structure for table `socialaccount_socialapp`
+--
 
--- ------------------------------------------------------------
--- Table: socialaccount_socialaccount
--- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `socialaccount_socialaccount` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `provider` VARCHAR(200) NOT NULL,
-  `uid` VARCHAR(191) NOT NULL,
-  `last_login` DATETIME(6) NOT NULL,
-  `date_joined` DATETIME(6) NOT NULL,
-  `user_id` INT NOT NULL,
-  `extra_data` JSON NOT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_socialaccount_provider_uid` (`provider`, `uid`),
-  KEY `idx_socialaccount_user` (`user_id`),
-  CONSTRAINT `fk_socialaccount_user`
-    FOREIGN KEY (`user_id`) REFERENCES `auth_user` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ------------------------------------------------------------
--- Table: socialaccount_socialapp
--- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `socialaccount_socialapp` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `provider` VARCHAR(30) NOT NULL,
-  `name` VARCHAR(40) NOT NULL,
-  `client_id` VARCHAR(191) NOT NULL,
-  `secret` VARCHAR(191) NOT NULL,
-  `key` VARCHAR(191) NOT NULL,
-  `provider_id` VARCHAR(200) NOT NULL,
-  `settings` JSON NOT NULL,
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `socialaccount_socialapp` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `provider` varchar(30) NOT NULL,
+  `name` varchar(40) NOT NULL,
+  `client_id` varchar(191) NOT NULL,
+  `secret` varchar(191) NOT NULL,
+  `key` varchar(191) NOT NULL,
+  `provider_id` varchar(200) NOT NULL,
+  `settings` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (json_valid(`settings`)),
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
--- ------------------------------------------------------------
--- Table: socialaccount_socialapp_sites (M:N app <-> site)
--- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `socialaccount_socialapp_sites` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `socialapp_id` INT NOT NULL,
-  `site_id` INT NOT NULL,
+--
+-- Table structure for table `socialaccount_socialapp_sites`
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `socialaccount_socialapp_sites` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `socialapp_id` int(11) NOT NULL,
+  `site_id` int(11) NOT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_socialaccount_socialapp_sites_app_site` (`socialapp_id`, `site_id`),
-  KEY `idx_socialaccount_socialapp_sites_app` (`socialapp_id`),
-  KEY `idx_socialaccount_socialapp_sites_site` (`site_id`),
-  CONSTRAINT `fk_socialaccount_socialapp_sites_app`
-    FOREIGN KEY (`socialapp_id`) REFERENCES `socialaccount_socialapp` (`id`),
-  CONSTRAINT `fk_socialaccount_socialapp_sites_site`
-    FOREIGN KEY (`site_id`) REFERENCES `django_site` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  UNIQUE KEY `socialaccount_socialapp_sites_socialapp_id_site_id_71a9a768_uniq` (`socialapp_id`,`site_id`),
+  KEY `socialaccount_socialapp_sites_site_id_2579dee5_fk_django_site_id` (`site_id`),
+  CONSTRAINT `socialaccount_social_socialapp_id_97fb6e7d_fk_socialacc` FOREIGN KEY (`socialapp_id`) REFERENCES `socialaccount_socialapp` (`id`),
+  CONSTRAINT `socialaccount_socialapp_sites_site_id_2579dee5_fk_django_site_id` FOREIGN KEY (`site_id`) REFERENCES `django_site` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
--- ------------------------------------------------------------
--- Table: socialaccount_socialtoken
--- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `socialaccount_socialtoken` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `token` LONGTEXT NOT NULL,
-  `token_secret` LONGTEXT NOT NULL,
-  `expires_at` DATETIME(6) NULL DEFAULT NULL,
-  `account_id` INT NOT NULL,
-  `app_id` INT NULL DEFAULT NULL,
+--
+-- Table structure for table `socialaccount_socialtoken`
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `socialaccount_socialtoken` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `token` longtext NOT NULL,
+  `token_secret` longtext NOT NULL,
+  `expires_at` datetime(6) DEFAULT NULL,
+  `account_id` int(11) NOT NULL,
+  `app_id` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_socialaccount_socialtoken_app_account` (`app_id`, `account_id`),
-  KEY `idx_socialaccount_socialtoken_account` (`account_id`),
-  KEY `idx_socialaccount_socialtoken_app` (`app_id`),
-  CONSTRAINT `fk_socialaccount_socialtoken_account`
-    FOREIGN KEY (`account_id`) REFERENCES `socialaccount_socialaccount` (`id`),
-  CONSTRAINT `fk_socialaccount_socialtoken_app`
-    FOREIGN KEY (`app_id`) REFERENCES `socialaccount_socialapp` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  UNIQUE KEY `socialaccount_socialtoken_app_id_account_id_fca4e0ac_uniq` (`app_id`,`account_id`),
+  KEY `socialaccount_social_account_id_951f210e_fk_socialacc` (`account_id`),
+  CONSTRAINT `socialaccount_social_account_id_951f210e_fk_socialacc` FOREIGN KEY (`account_id`) REFERENCES `socialaccount_socialaccount` (`id`),
+  CONSTRAINT `socialaccount_social_app_id_636a42d7_fk_socialacc` FOREIGN KEY (`app_id`) REFERENCES `socialaccount_socialapp` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
--- ============================================================
--- Application tables (apps.core / apps.users / apps.info)
--- ============================================================
+--
+-- Table structure for table `tblinfo`
+--
 
--- ------------------------------------------------------------
--- Table: techfix_category
--- Groups products, accessories and solutions (ex. Laptops, Audio)
--- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `techfix_category` (
-  `id` BIGINT NOT NULL AUTO_INCREMENT,
-  `name` VARCHAR(100) NOT NULL,
-  `description` LONGTEXT NOT NULL,
-  `created_at` DATETIME(6) NOT NULL,
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `tblinfo` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) NOT NULL,
+  `age` int(10) unsigned NOT NULL,
+  `address` varchar(255) NOT NULL,
+  `email` varchar(255) NOT NULL,
+  `created_at` datetime(6) NOT NULL,
+  `updated_at` datetime(6) NOT NULL,
+  `user_id` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_techfix_category_name` (`name`)
+  KEY `idx_tblinfo_user` (`user_id`),
+  CONSTRAINT `fk_tblinfo_user` FOREIGN KEY (`user_id`) REFERENCES `auth_user` (`id`),
+  CONSTRAINT `chk_tblinfo_age` CHECK (`age` >= 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
--- ------------------------------------------------------------
--- Table: techfix_product
--- Main technology devices (laptop, phone, printer, router)
--- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `techfix_product` (
-  `id` BIGINT NOT NULL AUTO_INCREMENT,
-  `name` VARCHAR(255) NOT NULL,
-  `brand` VARCHAR(100) NOT NULL,
-  `description` LONGTEXT NOT NULL,
-  `specifications` LONGTEXT NOT NULL COMMENT 'RAM, CPU, Storage, etc.',
-  `price` DECIMAL(10,2) NULL DEFAULT NULL,
-  `stock_quantity` INT UNSIGNED NULL DEFAULT NULL,
-  `image` VARCHAR(100) NULL DEFAULT NULL COMMENT 'upload_to=products/',
-  `created_at` DATETIME(6) NOT NULL,
-  `updated_at` DATETIME(6) NOT NULL,
-  `category_id` BIGINT NULL DEFAULT NULL,
-  `source_url` VARCHAR(200) NOT NULL,
-  `online_rating` DECIMAL(3,2) NULL DEFAULT NULL,
-  `online_rating_count` INT UNSIGNED NULL DEFAULT NULL,
-  `online_rating_source` VARCHAR(100) NOT NULL,
-  PRIMARY KEY (`id`),
-  CONSTRAINT `chk_product_stock_quantity` CHECK (`stock_quantity` >= 0),
-  CONSTRAINT `chk_product_online_rating_count` CHECK (`online_rating_count` >= 0),
-  KEY `idx_product_category` (`category_id`),
-  CONSTRAINT `fk_product_category`
-    FOREIGN KEY (`category_id`) REFERENCES `techfix_category` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+--
+-- Table structure for table `techfix_accessory`
+--
 
--- ------------------------------------------------------------
--- Table: techfix_accessory
--- Add-ons: cases, chargers, keyboards, earbuds, cables
--- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `techfix_accessory` (
-  `id` BIGINT NOT NULL AUTO_INCREMENT,
-  `name` VARCHAR(255) NOT NULL,
-  `brand` VARCHAR(100) NOT NULL,
-  `description` LONGTEXT NOT NULL,
-  `price` DECIMAL(10,2) NULL DEFAULT NULL,
-  `compatibility_notes` LONGTEXT NOT NULL COMMENT 'Ex. Compatible with USB-C laptops',
-  `stock_quantity` INT UNSIGNED NULL DEFAULT NULL,
-  `image` VARCHAR(100) NULL DEFAULT NULL COMMENT 'upload_to=accessories/',
-  `created_at` DATETIME(6) NOT NULL,
-  `category_id` BIGINT NULL DEFAULT NULL,
-  `source_url` VARCHAR(200) NOT NULL,
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `techfix_accessory` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) NOT NULL,
+  `brand` varchar(100) NOT NULL,
+  `description` longtext NOT NULL,
+  `price` decimal(10,2) DEFAULT NULL,
+  `compatibility_notes` longtext NOT NULL COMMENT 'Ex. Compatible with USB-C laptops',
+  `stock_quantity` int(10) unsigned DEFAULT NULL,
+  `image` varchar(100) DEFAULT NULL COMMENT 'upload_to=accessories/',
+  `created_at` datetime(6) NOT NULL,
+  `category_id` bigint(20) DEFAULT NULL,
+  `source_url` varchar(200) NOT NULL,
   PRIMARY KEY (`id`),
-  CONSTRAINT `chk_accessory_stock_quantity` CHECK (`stock_quantity` >= 0),
   KEY `idx_accessory_category` (`category_id`),
-  CONSTRAINT `fk_accessory_category`
-    FOREIGN KEY (`category_id`) REFERENCES `techfix_category` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  CONSTRAINT `fk_accessory_category` FOREIGN KEY (`category_id`) REFERENCES `techfix_category` (`id`),
+  CONSTRAINT `chk_accessory_stock_quantity` CHECK (`stock_quantity` >= 0)
+) ENGINE=InnoDB AUTO_INCREMENT=375 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
--- ------------------------------------------------------------
--- Table: techfix_accessory_compatible_products (M:N junction)
--- Which accessories work with which products.
--- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `techfix_accessory_compatible_products` (
-  `id` BIGINT NOT NULL AUTO_INCREMENT,
-  `accessory_id` BIGINT NOT NULL,
-  `product_id` BIGINT NOT NULL,
+--
+-- Table structure for table `techfix_accessory_compatible_products`
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `techfix_accessory_compatible_products` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `accessory_id` bigint(20) NOT NULL,
+  `product_id` bigint(20) NOT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_accessory_product` (`accessory_id`, `product_id`),
+  UNIQUE KEY `uq_accessory_product` (`accessory_id`,`product_id`),
   KEY `idx_junction_accessory` (`accessory_id`),
   KEY `idx_junction_product` (`product_id`),
-  CONSTRAINT `fk_junction_accessory`
-    FOREIGN KEY (`accessory_id`) REFERENCES `techfix_accessory` (`id`),
-  CONSTRAINT `fk_junction_product`
-    FOREIGN KEY (`product_id`) REFERENCES `techfix_product` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  CONSTRAINT `fk_junction_accessory` FOREIGN KEY (`accessory_id`) REFERENCES `techfix_accessory` (`id`),
+  CONSTRAINT `fk_junction_product` FOREIGN KEY (`product_id`) REFERENCES `techfix_product` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=717 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
--- ------------------------------------------------------------
--- Table: techfix_solution
--- Step-by-step fix for a common technology problem.
--- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `techfix_solution` (
-  `id` BIGINT NOT NULL AUTO_INCREMENT,
-  `title` VARCHAR(255) NOT NULL,
-  `problem_description` LONGTEXT NOT NULL COMMENT 'Symptoms / common issue',
-  `steps` LONGTEXT NOT NULL COMMENT 'Step 1, Step 2, ...',
-  `difficulty_level` VARCHAR(10) NOT NULL,
-  `video_url` VARCHAR(200) NOT NULL,
-  `created_at` DATETIME(6) NOT NULL,
-  `updated_at` DATETIME(6) NOT NULL,
-  `category_id` BIGINT NULL DEFAULT NULL,
-  `related_product_id` BIGINT NULL DEFAULT NULL,
+--
+-- Table structure for table `techfix_category`
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `techfix_category` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `name` varchar(100) NOT NULL,
+  `description` longtext NOT NULL,
+  `created_at` datetime(6) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_techfix_category_name` (`name`)
+) ENGINE=InnoDB AUTO_INCREMENT=19 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `techfix_product`
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `techfix_product` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) NOT NULL,
+  `brand` varchar(100) NOT NULL,
+  `description` longtext NOT NULL,
+  `specifications` longtext NOT NULL COMMENT 'RAM, CPU, Storage, etc.',
+  `price` decimal(10,2) DEFAULT NULL,
+  `stock_quantity` int(10) unsigned DEFAULT NULL,
+  `image` varchar(100) DEFAULT NULL COMMENT 'upload_to=products/',
+  `created_at` datetime(6) NOT NULL,
+  `updated_at` datetime(6) NOT NULL,
+  `category_id` bigint(20) DEFAULT NULL,
+  `source_url` varchar(200) NOT NULL,
+  `online_rating` decimal(3,2) DEFAULT NULL,
+  `online_rating_count` int(10) unsigned DEFAULT NULL CHECK (`online_rating_count` >= 0),
+  `online_rating_source` varchar(100) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_product_category` (`category_id`),
+  CONSTRAINT `fk_product_category` FOREIGN KEY (`category_id`) REFERENCES `techfix_category` (`id`),
+  CONSTRAINT `chk_product_stock_quantity` CHECK (`stock_quantity` >= 0)
+) ENGINE=InnoDB AUTO_INCREMENT=1274 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `techfix_recent_activity`
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `techfix_recent_activity` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `kind` varchar(40) NOT NULL,
+  `title` varchar(120) NOT NULL,
+  `url` varchar(2048) NOT NULL,
+  `created_at` datetime(6) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `chat_history` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (json_valid(`chat_history`)),
+  PRIMARY KEY (`id`),
+  KEY `techfix_recent_activity_user_id_2165119d_fk_auth_user_id` (`user_id`),
+  CONSTRAINT `techfix_recent_activity_user_id_2165119d_fk_auth_user_id` FOREIGN KEY (`user_id`) REFERENCES `auth_user` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=458 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `techfix_review`
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `techfix_review` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `rating` smallint(5) unsigned NOT NULL CHECK (`rating` >= 0),
+  `title` varchar(120) NOT NULL,
+  `comment` longtext NOT NULL,
+  `created_at` datetime(6) NOT NULL,
+  `updated_at` datetime(6) NOT NULL,
+  `accessory_id` bigint(20) DEFAULT NULL,
+  `product_id` bigint(20) DEFAULT NULL,
+  `user_id` int(11) NOT NULL,
+  `is_sample` tinyint(1) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `techfix_review_accessory_id_d92ba363_fk_techfix_accessory_id` (`accessory_id`),
+  KEY `techfix_review_product_id_5fda52b0_fk_techfix_product_id` (`product_id`),
+  KEY `techfix_review_user_id_bd5a99c7_fk_auth_user_id` (`user_id`),
+  CONSTRAINT `techfix_review_accessory_id_d92ba363_fk_techfix_accessory_id` FOREIGN KEY (`accessory_id`) REFERENCES `techfix_accessory` (`id`),
+  CONSTRAINT `techfix_review_product_id_5fda52b0_fk_techfix_product_id` FOREIGN KEY (`product_id`) REFERENCES `techfix_product` (`id`),
+  CONSTRAINT `techfix_review_user_id_bd5a99c7_fk_auth_user_id` FOREIGN KEY (`user_id`) REFERENCES `auth_user` (`id`),
+  CONSTRAINT `techfix_review_exactly_one_item` CHECK (`accessory_id` is null and `product_id` is not null or `accessory_id` is not null and `product_id` is null)
+) ENGINE=InnoDB AUTO_INCREMENT=6029 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `techfix_solution`
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `techfix_solution` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `title` varchar(255) NOT NULL,
+  `problem_description` longtext NOT NULL COMMENT 'Symptoms / common issue',
+  `steps` longtext NOT NULL COMMENT 'Step 1, Step 2, ...',
+  `difficulty_level` varchar(10) NOT NULL,
+  `video_url` varchar(200) NOT NULL,
+  `created_at` datetime(6) NOT NULL,
+  `updated_at` datetime(6) NOT NULL,
+  `category_id` bigint(20) DEFAULT NULL,
+  `related_product_id` bigint(20) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_solution_category` (`category_id`),
   KEY `idx_solution_product` (`related_product_id`),
-  CONSTRAINT `fk_solution_category`
-    FOREIGN KEY (`category_id`) REFERENCES `techfix_category` (`id`),
-  CONSTRAINT `fk_solution_product`
-    FOREIGN KEY (`related_product_id`) REFERENCES `techfix_product` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  CONSTRAINT `fk_solution_category` FOREIGN KEY (`category_id`) REFERENCES `techfix_category` (`id`),
+  CONSTRAINT `fk_solution_product` FOREIGN KEY (`related_product_id`) REFERENCES `techfix_product` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=657 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
--- ------------------------------------------------------------
--- Table: techfix_review
--- Rating and feedback for a product OR an accessory (exactly one).
--- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `techfix_review` (
-  `id` BIGINT NOT NULL AUTO_INCREMENT,
-  `rating` SMALLINT UNSIGNED NOT NULL,
-  `title` VARCHAR(120) NOT NULL,
-  `comment` LONGTEXT NOT NULL,
-  `created_at` DATETIME(6) NOT NULL,
-  `updated_at` DATETIME(6) NOT NULL,
-  `accessory_id` BIGINT NULL DEFAULT NULL,
-  `product_id` BIGINT NULL DEFAULT NULL,
-  `user_id` INT NOT NULL,
-  `is_sample` TINYINT(1) NOT NULL,
+--
+-- Table structure for table `users_phoneprofile`
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `users_phoneprofile` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `phone_number` varchar(16) DEFAULT NULL,
+  `user_id` int(11) NOT NULL,
   PRIMARY KEY (`id`),
-  CONSTRAINT `chk_review_rating` CHECK (`rating` >= 0),
-  CONSTRAINT `techfix_review_exactly_one_item` CHECK (
-    (`accessory_id` IS NULL AND `product_id` IS NOT NULL)
-    OR (`accessory_id` IS NOT NULL AND `product_id` IS NULL)
-  ),
-  KEY `idx_review_accessory` (`accessory_id`),
-  KEY `idx_review_product` (`product_id`),
-  KEY `idx_review_user` (`user_id`),
-  CONSTRAINT `fk_review_accessory`
-    FOREIGN KEY (`accessory_id`) REFERENCES `techfix_accessory` (`id`),
-  CONSTRAINT `fk_review_product`
-    FOREIGN KEY (`product_id`) REFERENCES `techfix_product` (`id`),
-  CONSTRAINT `fk_review_user`
-    FOREIGN KEY (`user_id`) REFERENCES `auth_user` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  UNIQUE KEY `user_id` (`user_id`),
+  UNIQUE KEY `phone_number` (`phone_number`),
+  CONSTRAINT `users_phoneprofile_user_id_95257b68_fk_auth_user_id` FOREIGN KEY (`user_id`) REFERENCES `auth_user` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
--- ------------------------------------------------------------
--- Table: techfix_recent_activity
--- Per-user dashboard activity, including optional chat history (JSON).
--- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `techfix_recent_activity` (
-  `id` BIGINT NOT NULL AUTO_INCREMENT,
-  `kind` VARCHAR(40) NOT NULL,
-  `title` VARCHAR(120) NOT NULL,
-  `url` VARCHAR(2048) NOT NULL,
-  `created_at` DATETIME(6) NOT NULL,
-  `user_id` INT NOT NULL,
-  `chat_history` JSON NOT NULL,
-  PRIMARY KEY (`id`),
-  KEY `idx_recent_activity_user` (`user_id`),
-  CONSTRAINT `fk_recent_activity_user`
-    FOREIGN KEY (`user_id`) REFERENCES `auth_user` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
+/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- ------------------------------------------------------------
--- Table: users_phoneprofile
--- One phone number per user (OneToOne, phone number unique).
--- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `users_phoneprofile` (
-  `id` BIGINT NOT NULL AUTO_INCREMENT,
-  `phone_number` VARCHAR(16) NULL DEFAULT NULL,
-  `user_id` INT NOT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_users_phoneprofile_phone_number` (`phone_number`),
-  UNIQUE KEY `uq_users_phoneprofile_user` (`user_id`),
-  CONSTRAINT `fk_phoneprofile_user`
-    FOREIGN KEY (`user_id`) REFERENCES `auth_user` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ------------------------------------------------------------
--- Table: tblinfo (apps.info.Info)
--- Personal info records, privately owned per user.
--- Superusers see all; regular users see only their own.
--- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `tblinfo` (
-  `id` BIGINT NOT NULL AUTO_INCREMENT,
-  `name` VARCHAR(255) NOT NULL,
-  `age` INT UNSIGNED NOT NULL,
-  `address` VARCHAR(255) NOT NULL,
-  `email` VARCHAR(255) NOT NULL,
-  `created_at` DATETIME(6) NOT NULL,
-  `updated_at` DATETIME(6) NOT NULL,
-  `user_id` INT NULL DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  CONSTRAINT `chk_tblinfo_age` CHECK (`age` >= 0),
-  KEY `idx_tblinfo_user` (`user_id`),
-  CONSTRAINT `fk_tblinfo_user`
-    FOREIGN KEY (`user_id`) REFERENCES `auth_user` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-SET FOREIGN_KEY_CHECKS = 1;
-
--- ------------------------------------------------------------
--- Default site row (required by django.contrib.sites / allauth,
--- SITE_ID = 1). `python manage.py migrate --fake` also creates it.
--- ------------------------------------------------------------
-INSERT IGNORE INTO `django_site` (`id`, `name`, `domain`)
-VALUES (1, 'example.com', 'example.com');
+-- Dump completed on 2026-11-11 21:10:40

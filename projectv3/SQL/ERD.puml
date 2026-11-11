@@ -1,9 +1,10 @@
 ' TECHFIX System — ERD (PlantUML)
 ' Open with PlantUML plugin / http://www.plantuml.com/plantuml/uml
 ' Files: SQL/ERD.puml | Rendered: SQL/ERD.png, SQL/ERD.svg
-' Generated: 2026-10-28
-' Django framework tables (auth_*, django_*) are omitted here for clarity;
-' see ERD.md and the SQL scripts for the complete 16-table schema.
+' Generated: 2026-11-11
+' Django framework tables (auth_*, django_*, account_*, socialaccount_*) are
+' omitted here for clarity; see ERD.md and the SQL scripts for the complete
+' 26-table schema.
 
 @startuml techfix_erd
 !define PRIMARY_KEY(x) <b><color:#1a73e8>x</color></b>
@@ -42,9 +43,13 @@ entity "techfix_product" as product {
   brand : VARCHAR(100)
   * description : TEXT
   specifications : TEXT
-  * price : DECIMAL(10,2)
-  * stock_quantity : INT UNSIGNED
+  price : DECIMAL(10,2) <<NULL>>
+  source_url : VARCHAR(200)
+  stock_quantity : INT UNSIGNED <<NULL>>
   image : VARCHAR(100)
+  online_rating : DECIMAL(3,2) <<NULL>>
+  online_rating_count : INT UNSIGNED <<NULL>>
+  online_rating_source : VARCHAR(100)
   * created_at : DATETIME
   * updated_at : DATETIME
 }
@@ -56,9 +61,10 @@ entity "techfix_accessory" as accessory {
   category_id : BIGINT <<FK, NULL>>
   brand : VARCHAR(100)
   description : TEXT
-  * price : DECIMAL(10,2)
+  price : DECIMAL(10,2) <<NULL>>
+  source_url : VARCHAR(200)
   compatibility_notes : TEXT
-  * stock_quantity : INT UNSIGNED
+  stock_quantity : INT UNSIGNED <<NULL>>
   image : VARCHAR(100)
   * created_at : DATETIME
 }
@@ -84,6 +90,38 @@ entity "techfix_solution" as solution {
   * updated_at : DATETIME
 }
 
+entity "techfix_review" as review {
+  * id : BIGINT <<PK, AI>>
+  --
+  product_id : BIGINT <<FK, NULL>>
+  accessory_id : BIGINT <<FK, NULL>>
+  * user_id : INT <<FK>>
+  * rating : SMALLINT UNSIGNED <<1..5>>
+  title : VARCHAR(120)
+  * comment : TEXT
+  * is_sample : TINYINT(1)
+  * created_at : DATETIME
+  * updated_at : DATETIME
+}
+
+entity "techfix_recent_activity" as activity {
+  * id : BIGINT <<PK, AI>>
+  --
+  * user_id : INT <<FK>>
+  * kind : VARCHAR(40)
+  * title : VARCHAR(120)
+  * url : VARCHAR(2048)
+  * chat_history : JSON
+  * created_at : DATETIME
+}
+
+entity "users_phoneprofile" as phone_profile {
+  * id : BIGINT <<PK, AI>>
+  --
+  phone_number : VARCHAR(16) <<NULL, UNIQUE>>
+  * user_id : INT <<FK, UNIQUE>>
+}
+
 entity "tblinfo" as info {
   * id : BIGINT <<PK, AI>>
   --
@@ -97,10 +135,15 @@ entity "tblinfo" as info {
 }
 
 auth_user ||--o{ info : "1 owns N"
+auth_user ||--o{ review : "1 writes N"
+auth_user ||--o{ activity : "1 logs N"
+auth_user ||--o| phone_profile : "1 has 0/1"
 category ||--o{ product : "1 groups N\nSET NULL"
 category ||--o{ accessory : "1 groups N\nSET NULL"
 category ||--o{ solution : "1 groups N\nSET NULL"
 product ||--o{ solution : "1 explained by N\nSET NULL"
+product ||--o{ review : "1 reviewed in N"
+accessory ||--o{ review : "1 reviewed in N"
 product ||--o{ junction : "1 matched in N\nCASCADE"
 accessory ||--o{ junction : "1 matched in N\nCASCADE"
 

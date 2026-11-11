@@ -1,9 +1,10 @@
 %% TECHFIX System — Entity Relationship Diagram (Mermaid)
 %% Paste into https://mermaid.live or any Markdown viewer with Mermaid support
 %% Files: SQL/ERD.mmd | Rendered: SQL/ERD.png, SQL/ERD.svg
-%% Generated: 2026-10-28
-%% Django framework tables (auth_*, django_*) are omitted here for clarity;
-%% see ERD.md and the SQL scripts for the complete 16-table schema.
+%% Generated: 2026-11-11
+%% Django framework tables (auth_*, django_*, account_*, socialaccount_*) are
+%% omitted here for clarity; see ERD.md and the SQL scripts for the complete
+%% 26-table schema.
 
 erDiagram
     AUTH_USER {
@@ -34,9 +35,13 @@ erDiagram
         varchar brand
         text description
         text specifications
-        decimal price "10,2"
-        int stock_quantity
+        decimal price "10,2 NULL"
+        varchar source_url
+        int stock_quantity "NULL"
         varchar image "NULL"
+        decimal online_rating "3,2 NULL"
+        int online_rating_count "NULL"
+        varchar online_rating_source
         datetime created_at
         datetime updated_at
     }
@@ -47,9 +52,10 @@ erDiagram
         bigint category_id FK "NULL, SET NULL"
         varchar brand
         text description
-        decimal price "10,2"
+        decimal price "10,2 NULL"
+        varchar source_url
         text compatibility_notes
-        int stock_quantity
+        int stock_quantity "NULL"
         varchar image "NULL"
         datetime created_at
     }
@@ -73,6 +79,35 @@ erDiagram
         datetime updated_at
     }
 
+    TECHFIX_REVIEW {
+        bigint id PK
+        bigint product_id FK "NULL, CASCADE"
+        bigint accessory_id FK "NULL, CASCADE"
+        int user_id FK "CASCADE"
+        int rating "1..5"
+        varchar title
+        text comment
+        boolean is_sample
+        datetime created_at
+        datetime updated_at
+    }
+
+    TECHFIX_RECENT_ACTIVITY {
+        bigint id PK
+        int user_id FK "CASCADE"
+        varchar kind
+        varchar title
+        varchar url
+        json chat_history
+        datetime created_at
+    }
+
+    USERS_PHONEPROFILE {
+        bigint id PK
+        varchar phone_number "NULL, UNIQUE"
+        int user_id FK "UNIQUE, CASCADE"
+    }
+
     TBLINFO {
         bigint id PK
         varchar name
@@ -86,9 +121,14 @@ erDiagram
 
     %% Relationships
     AUTH_USER ||--o{ TBLINFO : "owns (1:N)"
+    AUTH_USER ||--o{ TECHFIX_REVIEW : "writes (1:N)"
+    AUTH_USER ||--o{ TECHFIX_RECENT_ACTIVITY : "logs (1:N)"
+    AUTH_USER ||--o| USERS_PHONEPROFILE : "has (1:1)"
     TECHFIX_CATEGORY ||--o{ TECHFIX_PRODUCT : "groups (1:N)"
     TECHFIX_CATEGORY ||--o{ TECHFIX_ACCESSORY : "groups (1:N)"
     TECHFIX_CATEGORY ||--o{ TECHFIX_SOLUTION : "groups (1:N)"
     TECHFIX_PRODUCT ||--o{ TECHFIX_SOLUTION : "explains (1:N)"
+    TECHFIX_PRODUCT ||--o{ TECHFIX_REVIEW : "reviewed in (1:N)"
+    TECHFIX_ACCESSORY ||--o{ TECHFIX_REVIEW : "reviewed in (1:N)"
     TECHFIX_PRODUCT ||--o{ TECHFIX_ACCESSORY_COMPATIBLE_PRODUCTS : "matched in (1:N)"
     TECHFIX_ACCESSORY ||--o{ TECHFIX_ACCESSORY_COMPATIBLE_PRODUCTS : "matched in (1:N)"
